@@ -116,6 +116,13 @@ class Workflow(object):
         toolbar = bq.Toolbar(figure=fig)
         
         return ipw.VBox([fig, toolbar])
+
+	def gen_subdag(self):
+		"Return DAG containing only steps which are to be run. (Not yet implemented.)"
+		return self.dag
+
+	def export_cwl(self, cwl_file):
+		pass
         
 
 class Task(object):
