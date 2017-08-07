@@ -190,10 +190,7 @@ class WorkflowWidget(ipw.HBox):
             with self.output_area:
                 print("Selected node {}".format(node_num))
 
-            metadata = {
-                attr: getattr(node, attr)
-                for attr in node.user_fields
-            }
+            metadata = node.get_user_dict()
 
         self._update_metadata_html(metadata)
 
