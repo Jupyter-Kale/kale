@@ -8,6 +8,9 @@ import ipywidgets as ipw
 from copy import copy, deepcopy
 from IPython.display import display, HTML
 
+import fireworks as fw
+from fireworks.core.rocker_launcher import singleshot, rapidfire
+
 class Workflow(object):
     def __init__(self, name):
         self.dag = networkx.graph.Graph()
@@ -16,6 +19,9 @@ class Workflow(object):
         #self.fig_layout = ipw.Layout(width='600px', height='800px')
         self.fig_layout = ipw.Layout(width='1000px', height='800px')
         self._task_names = []
+
+        # Workflow executor - to be defined on initialization of wf executor.
+        self.wf_executor = None
     
     def add_task(self, task, dependencies=None):
         """
@@ -38,8 +44,14 @@ class Workflow(object):
         task.index[self] = index
         
         if dependencies is not None:
+            # Store dependency relationship in DAG
             for dependency in dependencies:
                 self.dag.add_edge(dependency, task)
+
+            # Store dependency relationships in all involved nodes
+            task.dependencies += dependencies
+            for dependency in dependencies:
+                dependency.children.append(task)
                 
     def get_task_by_name(self, name):
         "Return the Task object with the given name in this Workflow."
@@ -123,6 +135,36 @@ class Workflow(object):
 
     def export_cwl(self, cwl_file):
         pass
+
+    def init_fireworks(self):
+        "Create Fireworks LaunchPad for this workflow."
+
+        self._lpad = fw.LaunchPad()
+        self._wf_executor = 'fireworks'
+
+    def fw_run(self):
+        "Generate subDAG and launch via Fireworks"
+
+        # Verify that fireworks has been initiated
+        if self._wf_executor is not 'fireworks':
+            raise ValueError("FireWorks has not been initiated.")
+
+        dag = self.gen_subdag()
+
+        fw_tasks = []
+        fw_links = []
+        
+        for task in self.dag.nodes():
+            fw_tasks.append(task.firework)
+            fw_links[task.firework]: [child.firework for child in task.children]
+
+        fw_workflow = fw.Workflow(fw_tasks, fw_links)
+
+        self.lpad.add_wf(workflow)
+        # Currently only executes on a single Fireworker.
+        rapidfire(self.lpad, fw.FWorker())
+
+        ## Probably not working yet ##
         
 
 class Task(object):
@@ -247,6 +289,7 @@ class NotebookTask(Task):
     def _run(self):
         print("Notebook run.")
     
+
     def _unblock(self):
         """
         Return control to Workflow after interactive notebook
