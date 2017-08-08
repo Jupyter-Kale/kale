@@ -49,9 +49,21 @@ class Workflow(object):
                 self.dag.add_edge(dependency, task)
 
             # Store dependency relationships in all involved nodes
-            task.dependencies += dependencies
+            task.dependencies[self] = dependencies
+
             for dependency in dependencies:
-                dependency.children.append(task)
+                # Create child list for this workflow if not present
+                if self not in task.children.keys():
+                    dependency.children[self] = [task]
+                else:
+                    dependency.children[self].append(task)
+
+        # Write empty list to dependency dict if none exist
+        else:
+            task.dependencies[self] = []
+
+        # Tasks cannot have children at definition time.
+        task.children[self] = []
                 
     def get_task_by_name(self, name):
         "Return the Task object with the given name in this Workflow."
@@ -139,7 +151,7 @@ class Workflow(object):
     def init_fireworks(self):
         "Create Fireworks LaunchPad for this workflow."
 
-        self._lpad = fw.LaunchPad()
+        self.lpad = fw.LaunchPad()
         self._wf_executor = 'fireworks'
 
     def fw_run(self):
@@ -147,20 +159,30 @@ class Workflow(object):
 
         # Verify that fireworks has been initiated
         if self._wf_executor is not 'fireworks':
-            raise ValueError("FireWorks has not been initiated.")
+            raise ValueError("Fireworks has not been initiated.")
 
         dag = self.gen_subdag()
 
         fw_tasks = []
-        fw_links = []
+        fw_links = {}
         
         for task in self.dag.nodes():
-            fw_tasks.append(task.firework)
-            fw_links[task.firework] = [child.firework for child in task.children]
+            firework = task.get_firework()
+            fw_tasks.append(firework)
+            fw_links[firework] = [
+                child.get_firework() 
+                for child in task.children[self]
+            ]
+
+        print()
+        print("Tasks: {}".format(fw_tasks))
+        print()
+        print("Links: {}".format(fw_links))
+        print()
 
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
 
-        self.lpad.add_wf(workflow)
+        self.lpad.add_wf(fw_workflow)
         # Currently only executes on a single Fireworker.
         rapidfire(self.lpad, fw.FWorker())
 
@@ -180,13 +202,6 @@ class Task(object):
         # Type of task (Notebook, CommandLine, etc.)
         self.task_type = task_type
         
-        # List of other Tasks which must complete 
-        # before this Task can be run.
-        self.dependencies = []
-        
-        # List of Tasks which depend on this Task.
-        self.children = []
-        
         # Files which this Task takes as input 
         # and must be present before run.
         self.input_files = input_files
@@ -201,6 +216,13 @@ class Task(object):
         # represents this task in that workflow.
         # Tasks may be in multiple workflows,
         self.index = {}
+
+        # List of other Tasks which must complete 
+        # before this Task can be run.
+        self.dependencies = {}
+        
+        # List of Tasks which depend on this Task.
+        self.children = {}
         
         # Parameters to replace in other arguments
         self.params = params
@@ -228,6 +250,9 @@ class Task(object):
             'output_files',
             'num_cores'
         ] + user_fields
+
+        # Initialize None as placeholder for Firework executable.
+        self._firework = None
     
     def get_user_dict(self):
         "Generate dictionary of user field names and values"
@@ -235,7 +260,16 @@ class Task(object):
             field: getattr(self, field) 
             for field in self.user_fields
         }
-            
+
+    def get_firework(self):
+        "Return Firework if it exists, and create it otherwise."
+        if self._firework is None:
+            self._firework = fw.Firework(
+                    self._gen_firetask(),
+                    name=self.name
+                    )
+        return self._firework
+
     def _substitute_fields(self):
         "Replace fields according to params dict."
         for field in self._substitute_strings:
@@ -303,7 +337,6 @@ class CommandLineTask(Task):
     def __init__(self, name, command, **kwargs):
         
         self.command = command
-        
         user_fields = ['command']
         
         super().__init__(
@@ -313,30 +346,42 @@ class CommandLineTask(Task):
             user_fields=user_fields,
             **kwargs
         )
-        
     
     def _run(self):
         print("Command Line run.")
 
+    def _gen_firetask(self):
+        "Create a Firework for this task."
+        return fw.ScriptTask.from_str(self.command)
+
         
 class PythonFunctionTask(Task):
     "Python function call to be executed as a Workflow step."
-    def __init__(self, name, fun, fun_args, fun_kwargs, **kwargs):
+    def __init__(self, name, func, args=[], kwargs={}, **other_kwargs):
         # Actual callable function to be executed.
-        self.fun = fun
+        self.func = func
+        self.args = args
+        self.kwargs = kwargs
         
-        user_fields = ['fun_args', 'fun_kwargs']
+        user_fields = ['func.__name__', 'args', 'kwargs']
         
         super().__init__(
             name=name, 
             task_type='PythonFunctionTask',
             user_fields=user_fields,
-            **kwargs
+            **other_kwargs
         )
     
     def _run(self):
         print("Python function run.")
-        return self.fun(*fun_args, **fun_kwargs)
+        return self.fun(*args, **kwargs)
+
+    def _gen_firetask(self):
+        return fw.PyTask(
+            func=self.func,
+            args=self.args,
+            kwargs=self.kwargs
+        )
     
 class BatchTask(Task):
     "Task which will be submitted to a batch queue to execute."
