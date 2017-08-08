@@ -9,7 +9,7 @@ from copy import copy, deepcopy
 from IPython.display import display, HTML
 
 import fireworks as fw
-from fireworks.core.rocker_launcher import singleshot, rapidfire
+from fireworks.core.rocket_launcher import rapidfire
 
 class Workflow(object):
     def __init__(self, name):
@@ -156,7 +156,7 @@ class Workflow(object):
         
         for task in self.dag.nodes():
             fw_tasks.append(task.firework)
-            fw_links[task.firework]: [child.firework for child in task.children]
+            fw_links[task.firework] = [child.firework for child in task.children]
 
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
 
