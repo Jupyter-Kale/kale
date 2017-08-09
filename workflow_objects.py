@@ -7,6 +7,7 @@ import numpy as np
 import ipywidgets as ipw
 from copy import copy, deepcopy
 from IPython.display import display, HTML
+import os
 
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
@@ -152,6 +153,7 @@ class Workflow(object):
         "Create Fireworks LaunchPad for this workflow."
 
         self.lpad = fw.LaunchPad()
+        self.lpad.reset('', require_password=False)
         self._wf_executor = 'fireworks'
 
     def fw_run(self):
@@ -174,20 +176,12 @@ class Workflow(object):
                 for child in task.children[self]
             ]
 
-        print()
-        print("Tasks: {}".format(fw_tasks))
-        print()
-        print("Links: {}".format(fw_links))
-        print()
-
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
-
         self.lpad.add_wf(fw_workflow)
+
         # Currently only executes on a single Fireworker.
         rapidfire(self.lpad, fw.FWorker())
 
-        ## Probably not working yet ##
-        
 
 class Task(object):
     "One step in a Workflow. Must have a unique name."
@@ -266,7 +260,10 @@ class Task(object):
         if self._firework is None:
             self._firework = fw.Firework(
                     self._gen_firetask(),
-                    name=self.name
+                    name=self.name,
+                    spec={
+                        '_launch_dir': os.getcwd()
+                    }
                     )
         return self._firework
 
@@ -378,7 +375,7 @@ class PythonFunctionTask(Task):
 
     def _gen_firetask(self):
         return fw.PyTask(
-            func=self.func,
+            func=self.func.__name__,
             args=self.args,
             kwargs=self.kwargs
         )
