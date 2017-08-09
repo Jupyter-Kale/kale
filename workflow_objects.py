@@ -12,6 +12,118 @@ import os
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
 
+from concurrent.futures import ThreadPoolExecutor
+
+
+class Worker(object):
+    """Compuational resource on which to execute jobs.
+    Should be created by WorkerPool.
+    """
+
+    def __init__(self, wf_executor='fireworks', *args, **kwargs):
+
+        if wf_executor == 'fireworks':
+            self.fireworker = fw.FWorker(*args, **kwargs)
+
+    def fw_rapidfire(self, workflow):
+        rapidfire(
+            launchpad=workflow.lpad,
+            fworker=self.fireworker
+        )
+
+
+class WorkerPool(object):
+    "Pool of workers which can execute jobs."
+
+    def _verify_executor(wf_executor):
+        """Verify that given workflow executor is actually
+        the one used by this WorkerPool.
+        The syntax for decorators with arguments is strange.
+        http://scottlobdell.me/2015/04/decorators-arguments-python/
+        And for instance methods as decorators:
+        https://stackoverflow.com/a/1263782/4228052
+        """
+
+        def decorator(func):
+            def wrapper(self, *args, **kwargs):
+                if self.wf_executor != wf_executor:
+                    raise ValueError(
+                    "Tried to use '{}' functionality, but current workflow executor is '{}'".format(wf_executor, self.wf_executor))
+
+                else:
+                    return func(self, *args, **kwargs)
+            return wrapper
+        return decorator
+
+    def __init__(self, num_workers, wf_executor='fireworks'):
+
+        self.workers = []
+        self._add_workers(num_workers)
+        self.futures = []
+
+        self.wf_executor = wf_executor
+
+        if wf_executor == 'fireworks':
+            self.init_fireworks()
+
+    def _add_workers(self, num_workers, *args, **kwargs):
+        "Add workers to pool."
+        self.workers += [Worker(*args, **kwargs) for i in range(num_workers)]
+
+    @_verify_executor('fireworks')
+    def fw_rapidfire(self, workflow):
+        "Execute workflow in rapidfire with workers."
+
+        # All workers should concurrently pull jobs.
+        with ThreadPoolExecutor() as executor:
+            self.futures = [
+                executor.submit(
+                    worker.fw_rapidfire,
+                    workflow=workflow
+                )
+                for worker in self.workers
+            ]
+    
+    @_verify_executor('fireworks')
+    def init_fireworks(self):
+        "Create Fireworks LaunchPad for this workflow."
+
+        self.lpad = fw.LaunchPad()
+        self.lpad.reset('', require_password=False)
+
+    @_verify_executor('fireworks')
+    def _fw_queue(self):
+        "Generate subDAG and queue via Fireworks."
+
+        # Verify that fireworks has been initiated
+        if self.wf_executor is not 'fireworks':
+            raise ValueError("Fireworks has not been initiated.")
+
+        dag = self.gen_subdag()
+
+        fw_tasks = []
+        fw_links = {}
+        
+        for task in self.dag.nodes():
+            firework = task.get_firework()
+            fw_tasks.append(firework)
+            fw_links[firework] = [
+                child.get_firework() 
+                for child in task.children[self]
+            ]
+
+        fw_workflow = fw.Workflow(fw_tasks, fw_links)
+        self.lpad.add_wf(fw_workflow)
+
+    @_verify_executor('fireworks')
+    def fw_run(self):
+        "Launch queued jobs via Fireworks."
+        self._fw_queue()
+
+        # Currently only executes on a single Fireworker.
+        rapidfire(self.lpad, fw.FWorker())
+
+
 class Workflow(object):
     def __init__(self, name):
         self.dag = networkx.graph.Graph()
@@ -148,39 +260,6 @@ class Workflow(object):
 
     def export_cwl(self, cwl_file):
         pass
-
-    def init_fireworks(self):
-        "Create Fireworks LaunchPad for this workflow."
-
-        self.lpad = fw.LaunchPad()
-        self.lpad.reset('', require_password=False)
-        self._wf_executor = 'fireworks'
-
-    def fw_run(self):
-        "Generate subDAG and launch via Fireworks"
-
-        # Verify that fireworks has been initiated
-        if self._wf_executor is not 'fireworks':
-            raise ValueError("Fireworks has not been initiated.")
-
-        dag = self.gen_subdag()
-
-        fw_tasks = []
-        fw_links = {}
-        
-        for task in self.dag.nodes():
-            firework = task.get_firework()
-            fw_tasks.append(firework)
-            fw_links[firework] = [
-                child.get_firework() 
-                for child in task.children[self]
-            ]
-
-        fw_workflow = fw.Workflow(fw_tasks, fw_links)
-        self.lpad.add_wf(fw_workflow)
-
-        # Currently only executes on a single Fireworker.
-        rapidfire(self.lpad, fw.FWorker())
 
 
 class Task(object):
