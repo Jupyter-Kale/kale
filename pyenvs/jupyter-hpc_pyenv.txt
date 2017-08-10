@@ -55,7 +55,6 @@ dependencies:
 - zeromq=4.2.1=1
 - libgfortran=3.0.0=1
 - mkl=2017.0.3=0
-- networkx=1.11=py36_0
 - numpy=1.13.1=py36_0
 - openssl=1.0.2l=0
 - pip=9.0.1=py36_1
@@ -69,9 +68,24 @@ dependencies:
 - xz=5.2.2=1
 - zlib=1.2.8=3
 - pip:
+  - click==6.7
+  - fireworks==1.4.8
+  - flask==0.12.2
+  - flask-paginate==0.5.0
+  - gunicorn==19.7.1
   - ipython-genutils==0.2.0
+  - itsdangerous==0.24
   - jupyter-client==5.1.0
   - jupyter-core==4.3.0
+  - monty==1.0.1
+  - networkx==1.11
   - prompt-toolkit==1.0.15
+  - pydotplus==2.0.2
+  - pymongo==3.5.0
+  - pyparsing==2.2.0
+  - pyyaml==3.12
+  - tabulate==0.7.7
+  - tqdm==4.15.0
+  - werkzeug==0.12.2
 prefix: /home/oliver/local/miniconda3/envs/jupyter-hpc
 
