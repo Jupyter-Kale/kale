@@ -1,40 +1,54 @@
 import os
 import pandas as pd
 import re
+from sys import argv
 
-pd.set_option('display.width', 0)
-pd.set_option('display.max_rows', None)
+# Given input files from `conda env export` from several environments,
+# generate nicely formatted files containing versions of every package
+# contained in any environment.
+# Writes full comparison to stdout.
 
-names = ['cori','oliver-laptop']
-files = ['{}_pyenv.yml'.format(name) for name in names]
-data = {}
-dfs = []
+if len(argv) >= 3:
+    pd.set_option('display.width', 0)
+    pd.set_option('display.max_rows', None)
 
-for name, f in zip(names, files):
-    with open(f) as fh:
-        lines = fh.readlines()
+    #names = ['cori','oliver-laptop']
+    #files = ['{}_pyenv.yml'.format(name) for name in names]
+    files = argv[1:]
+    names = [os.path.basename(f).split('.')[0] for f in files]
+    data = {}
+    dfs = []
 
-    data_raw = [line.strip() for line in lines if '=' in line]
-    data = [re.sub('[- ]','', p).split('=',maxsplit=1) for p in data_raw]
+    for name, f in zip(names, files):
+        with open(f) as fh:
+            lines = fh.readlines()
 
-    pkgs, versions = zip(*data)
+        data_raw = [line.strip() for line in lines if '=' in line]
+        data = [re.sub('[- ]','', p).split('=',maxsplit=1) for p in data_raw]
 
-    # Replace local dir with 'local'
-    pkgs = [re.sub('\(.*\)', ' (local)', pkg) for pkg in pkgs] 
+        pkgs, versions = zip(*data)
 
-    df = pd.DataFrame(
-        data=list(versions),
-        index=list(pkgs),
-        columns=[name]
-    )
+        # Replace local dir with 'local'
+        pkgs = [re.sub('\(.*\)', ' (local)', pkg) for pkg in pkgs] 
 
-    dfs.append(df)
+        df = pd.DataFrame(
+            data=list(versions),
+            index=list(pkgs),
+            columns=[name]
+        )
 
-df = pd.concat(dfs, axis=1)
+        dfs.append(df)
+
+    df = pd.concat(dfs, axis=1)
+
+    """
+    for name in names:
+        with open('{}_table.txt'.format(name), 'w') as fh:
+            fh.write(str(df[name]))
+    """
+
+    print(df)
 
 
-for name in names:
-    with open('{}_table.txt'.format(name), 'w') as fh:
-        fh.write(str(df[name]))
-
-
+else:
+    print("Please supply at least two files")
