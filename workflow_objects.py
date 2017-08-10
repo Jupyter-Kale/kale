@@ -20,20 +20,34 @@ class Worker(object):
     Should be created by WorkerPool.
     """
 
-    def __init__(self, wf_executor='fireworks', *args, **kwargs):
+    def __init__(self, pool, wf_executor='fireworks', *args, **kwargs):
+
+        self.pool = pool
 
         if wf_executor == 'fireworks':
             self.fireworker = fw.FWorker(*args, **kwargs)
 
-    def fw_rapidfire(self, workflow):
-        rapidfire(
-            launchpad=workflow.lpad,
+    def _worker_fw_rapidfire(self, workflow):
+        return rapidfire(
+            launchpad=self.pool.lpad,
             fworker=self.fireworker
         )
 
 
 class WorkerPool(object):
     "Pool of workers which can execute jobs."
+
+    def __init__(self, num_workers, wf_executor='fireworks'):
+
+        self.futures = []
+        self.workers = []
+        self.wf_executor = wf_executor
+        self.log_area = ipw.Output()
+
+        self._add_workers(num_workers)
+
+        if wf_executor == 'fireworks':
+            self.init_fireworks()
 
     def _verify_executor(wf_executor):
         """Verify that given workflow executor is actually
@@ -48,41 +62,48 @@ class WorkerPool(object):
             def wrapper(self, *args, **kwargs):
                 if self.wf_executor != wf_executor:
                     raise ValueError(
-                    "Tried to use '{}' functionality, but current workflow executor is '{}'".format(wf_executor, self.wf_executor))
+                    "Tried to use '{}' functionality, but current workflow executor for this WorkerPool is '{}'".format(wf_executor, self.wf_executor))
 
                 else:
                     return func(self, *args, **kwargs)
             return wrapper
         return decorator
 
-    def __init__(self, num_workers, wf_executor='fireworks'):
-
-        self.workers = []
-        self._add_workers(num_workers)
-        self.futures = []
-
-        self.wf_executor = wf_executor
-
-        if wf_executor == 'fireworks':
-            self.init_fireworks()
-
     def _add_workers(self, num_workers, *args, **kwargs):
         "Add workers to pool."
-        self.workers += [Worker(*args, **kwargs) for i in range(num_workers)]
+        self.workers += [
+            Worker(
+                pool=self,
+                wf_executor=self.wf_executor,
+                *args,
+                **kwargs
+            )
+            for i in range(num_workers)
+        ]
+
+    def _log_decorator(self, fun):
+        "Execute function and log output."
+        def wrapper(*args, **kwargs):
+            with self.log_area:
+                return fun(*args, **kwargs)
+        return wrapper
 
     @_verify_executor('fireworks')
-    def fw_rapidfire(self, workflow):
-        "Execute workflow in rapidfire with workers."
+    def _fw_rapidfire(self, workflow):
+        "Execute workflow in rapidfire with Workers."
 
         # All workers should concurrently pull jobs.
         with ThreadPoolExecutor() as executor:
-            self.futures = [
-                executor.submit(
-                    worker.fw_rapidfire,
-                    workflow=workflow
+            self.threads = []
+            for i, worker in enumerate(self.workers):
+
+                self.log_area.clear_output()
+                self.futures.append(
+                    executor.submit(
+                        self._log_decorator(worker._worker_fw_rapidfire),
+                        workflow=workflow
+                    )
                 )
-                for worker in self.workers
-            ]
     
     @_verify_executor('fireworks')
     def init_fireworks(self):
@@ -92,36 +113,29 @@ class WorkerPool(object):
         self.lpad.reset('', require_password=False)
 
     @_verify_executor('fireworks')
-    def _fw_queue(self):
+    def _fw_queue(self, workflow):
         "Generate subDAG and queue via Fireworks."
 
-        # Verify that fireworks has been initiated
-        if self.wf_executor is not 'fireworks':
-            raise ValueError("Fireworks has not been initiated.")
-
-        dag = self.gen_subdag()
+        dag = workflow.gen_subdag()
 
         fw_tasks = []
         fw_links = {}
         
-        for task in self.dag.nodes():
+        for task in workflow.dag.nodes():
             firework = task.get_firework()
             fw_tasks.append(firework)
             fw_links[firework] = [
                 child.get_firework() 
-                for child in task.children[self]
+                for child in task.children[workflow]
             ]
 
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
         self.lpad.add_wf(fw_workflow)
 
-    @_verify_executor('fireworks')
-    def fw_run(self):
-        "Launch queued jobs via Fireworks."
-        self._fw_queue()
-
-        # Currently only executes on a single Fireworker.
-        rapidfire(self.lpad, fw.FWorker())
+    def fw_run(self, workflow):
+        "Queue jobs from workflow and execute them all via Fireworks."
+        self._fw_queue(workflow)
+        self._fw_rapidfire(workflow)
 
 
 class Workflow(object):
@@ -334,16 +348,19 @@ class Task(object):
             for field in self.user_fields
         }
 
-    def get_firework(self):
+    def get_firework(self, launch_dir):
         "Return Firework if it exists, and create it otherwise."
         if self._firework is None:
+            if launch_dir is None:
+                launch_dir = os.getcwd()
+
             self._firework = fw.Firework(
-                    self._gen_firetask(),
-                    name=self.name,
-                    spec={
-                        '_launch_dir': os.getcwd()
-                    }
-                    )
+                self._gen_firetask(),
+                name=self.name,
+                spec={
+                    '_launch_dir': launch_dir
+                }
+            )
         return self._firework
 
     def _substitute_fields(self):
