@@ -94,7 +94,7 @@ class WorkerPool(object):
 
         # All workers should concurrently pull jobs.
         with ThreadPoolExecutor() as executor:
-            self.threads = []
+            self.futures = []
             for i, worker in enumerate(self.workers):
 
                 self.log_area.clear_output()
@@ -132,6 +132,7 @@ class WorkerPool(object):
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
         self.lpad.add_wf(fw_workflow)
 
+    @_verify_executor('fireworks')
     def fw_run(self, workflow):
         "Queue jobs from workflow and execute them all via Fireworks."
         self._fw_queue(workflow)
@@ -348,12 +349,13 @@ class Task(object):
             for field in self.user_fields
         }
 
-    def get_firework(self, launch_dir):
-        "Return Firework if it exists, and create it otherwise."
-        if self._firework is None:
-            if launch_dir is None:
-                launch_dir = os.getcwd()
+    def get_firework(self, launch_dir=None):
+        """Return Firework if it exists, and create it otherwise.
+        Default to creating new directory for output (FW default).
+        Pass launch_dir='.' to run in current directory.
+        """
 
+        if self._firework is not None:
             self._firework = fw.Firework(
                 self._gen_firetask(),
                 name=self.name,
