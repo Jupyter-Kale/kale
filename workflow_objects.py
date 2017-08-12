@@ -8,6 +8,7 @@ import ipywidgets as ipw
 from copy import copy, deepcopy
 from IPython.display import display, HTML
 import os
+import time
 
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
@@ -96,7 +97,6 @@ class WorkerPool(object):
         with ThreadPoolExecutor() as executor:
             self.futures = []
             for i, worker in enumerate(self.workers):
-
                 self.log_area.clear_output()
                 self.futures.append(
                     executor.submit(
@@ -104,6 +104,8 @@ class WorkerPool(object):
                         workflow=workflow
                     )
                 )
+                time.sleep(1)
+
     
     @_verify_executor('fireworks')
     def init_fireworks(self):
@@ -122,12 +124,13 @@ class WorkerPool(object):
         fw_links = {}
         
         for task in workflow.dag.nodes():
-            firework = task.get_firework()
+            firework = task.get_firework(launch_dir=os.getcwd())
             fw_tasks.append(firework)
-            fw_links[firework] = [
-                child.get_firework() 
-                for child in task.children[workflow]
-            ]
+            child_list = []
+            for child in task.children[workflow]:
+                child = child.get_firework(launch_dir=os.getcwd())
+                child_list.append(child.fw_id)
+            fw_links[firework.fw_id] = child_list
 
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
         self.lpad.add_wf(fw_workflow)
@@ -170,7 +173,7 @@ class Workflow(object):
         # Inform workflow and task of this assignment
         self.dag.add_node(task, index=index)
         task.index[self] = index
-        
+
         if dependencies is not None:
             # Store dependency relationship in DAG
             for dependency in dependencies:
@@ -181,7 +184,7 @@ class Workflow(object):
 
             for dependency in dependencies:
                 # Create child list for this workflow if not present
-                if self not in task.children.keys():
+                if self not in dependency.children.keys():
                     dependency.children[self] = [task]
                 else:
                     dependency.children[self].append(task)
@@ -355,14 +358,23 @@ class Task(object):
         Pass launch_dir='.' to run in current directory.
         """
 
-        if self._firework is not None:
+        # Only create new firework if it doesn't already exist.
+        if self._firework is None:
+            if launch_dir is None:
+                spec = None
+            else:
+                # Turn relative paths into absolute paths to pass to fireworks.
+                launch_dir = os.path.abspath(launch_dir)
+
+                spec = {'_launch_dir': launch_dir}
+
+            # Create firework
             self._firework = fw.Firework(
                 self._gen_firetask(),
                 name=self.name,
-                spec={
-                    '_launch_dir': launch_dir
-                }
+                spec=spec
             )
+
         return self._firework
 
     def _substitute_fields(self):
