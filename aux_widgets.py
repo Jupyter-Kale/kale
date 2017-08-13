@@ -586,7 +586,7 @@ class FileBrowserWidget(ipw.Select):
             self.cd(newdir)
 
 def Space(height=0, width=0):
-	"Empty IPyWidget Box of specified size."
+    "Empty IPyWidget Box of specified size."
     return ipw.Box(
         layout=ipw.Layout(
             width=u'{}px'.format(width),
