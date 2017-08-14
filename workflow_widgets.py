@@ -2,6 +2,8 @@
 # August 7, 2017
 
 import ipywidgets as ipw
+import aux_widgets as aux
+import workflow_objects as kale
 import bqplot as bq
 
 class EditHTML(ipw.VBox):
@@ -206,3 +208,119 @@ class WorkflowWidget(ipw.HBox):
     def _call_read_log(self, caller=None):
         log_path = self._log_path_input.value
         self._read_log(log_path)
+
+
+class WorkerPoolWidget(ipw.VBox):
+    "GUI widget for managing WorkerPools."
+    def __init__(self):
+        
+        # UI
+        self.out_area = ipw.Output()
+        self._name_text = ipw.Text()
+        self._num_workers_text = ipw.IntText(value=1)
+        self._new_button = ipw.Button(
+            icon="plus",
+            button_style="success",
+        )
+
+        self._header = ipw.HTML("<h3>Worker Pools</h3>")
+        self.table = aux.TableWidget(
+            [["Name", "Workers", "Action"],
+            [self._name_text, self._num_workers_text, self._new_button]],
+            col_widths=[150,60,100]
+        )
+        self._status_bar = ipw.HTML()
+
+        # Layout
+        # IntText needs to be 2 pixels smaller than its container
+        name_text_width = self.table.col_widths_int[0]-2
+        int_text_width = self.table.col_widths_int[1]-2
+        self._name_text.layout=ipw.Layout(
+            width=u'{}px'.format(name_text_width)
+        )
+        self._num_workers_text.layout=ipw.Layout(
+            width=u'{}px'.format(int_text_width)
+        )
+        
+        # Logic
+        self._pool_dict = {}
+        self._name_text.on_submit(self._watch_add_pool)
+        self._new_button.on_click(self._watch_add_pool)
+        
+        super().__init__(
+            children=[self._header, self.table, self._status_bar]
+        )
+
+    def add_pool(self, name, num_workers):
+        "Add WorkerPool with name `name` and `num_workers` workers to widget."
+        # Check for name conflicts
+        if name in self._pool_dict.keys():
+            self.set_status(
+                text="Pool with name '{}' already defined in this widget.".format(name),
+                alert_style="danger"
+            )
+        else:
+
+            with self.out_area:
+                pool = kale.WorkerPool(name, num_workers)
+
+            remove_button = ipw.Button(
+                description="Remove",
+                button_style="danger"
+            )
+
+            self._pool_dict[name] = pool
+            self.table.insert_row(
+                -1,
+                [name, str(num_workers), remove_button]
+            )
+
+            # Store row information in remove_button so that the 
+            # button can query the present row index when clicked
+            # in order to remove the correct pool.
+
+            # Newly created row is second to last (creation form is last)
+            remove_button.row = self.table.children[-2]
+
+            remove_button.on_click(self._remove_button)
+            
+            self.set_status("WorkerPool '{}' created.".format(name), alert_style='success')
+    
+    def _watch_add_pool(self, caller):
+        "Add worker pool to widget. To be called by button."
+        num_workers = self._num_workers_text.value 
+        name = self._name_text.value
+        self.add_pool(name, num_workers)
+        
+    def get_pool(self, name):
+        "Get worker pool by name"
+        return self._pool_dict[name]
+            
+    def pop_pool(self, index):
+        "Remove worker pool in row `index` from widget, and return the pool, as in `list.pop`."
+        row = self.table.pop_row(index)
+        name = row.children[0].children[0].value
+        pool = self._pool_dict.pop(name)
+        self.set_status("WorkerPool '{}' removed.".format(name), alert_style='warning')
+
+    def _remove_button(self, button):
+        "To be called by remove button."
+        index = button.row.get_index()
+        self.pop_pool(index)
+    
+    def set_status(self, text, alert_style='info'):
+        if alert_style is None:
+            css_class = ''
+        elif alert_style in ['danger','warning','info','success']:
+            css_class = 'alert alert-{}'.format(alert_style)
+            
+        self._status_bar.value="""
+        <div class="{css_class}">
+        {text}
+        </div>
+        """.format(
+            css_class=css_class,
+            text=text
+        )
+   
+

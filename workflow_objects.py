@@ -38,11 +38,12 @@ class Worker(object):
 class WorkerPool(object):
     "Pool of workers which can execute jobs."
 
-    def __init__(self, num_workers, wf_executor='fireworks'):
+    def __init__(self, name, num_workers, wf_executor='fireworks'):
 
         self.futures = []
         self.workers = []
         self.wf_executor = wf_executor
+        self.name = name
         self.log_area = ipw.Output()
 
         self._add_workers(num_workers)
