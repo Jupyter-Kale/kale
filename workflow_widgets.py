@@ -4,6 +4,7 @@
 import ipywidgets as ipw
 import aux_widgets as aux
 import workflow_objects as kale
+import traitlets
 import bqplot as bq
 
 class EditHTML(ipw.VBox):
@@ -42,7 +43,7 @@ class WorkflowWidget(ipw.HBox):
         return self.workflow.get_bqgraph()
     
     def __init__(self, workflow):
-        super(WorkflowWidget, self).__init__()
+        super().__init__()
         
         # Define variables
         self.workflow = workflow
@@ -51,6 +52,9 @@ class WorkflowWidget(ipw.HBox):
         self._ys = bq.LinearScale()
         self._scales = {'x': self._xs, 'y': self._ys}
         mgin = 10
+
+        # Link which binds readme text of selected task to displayed value
+        self._readme_link = None
         
         # Define elements
         self._metadata_template = """
@@ -62,33 +66,7 @@ class WorkflowWidget(ipw.HBox):
         """
         self._metadata_html = ipw.HTML()
         
-        readme_html = EditHTML(r"""
-            <h1>Radiative Transfer</h1>
-
-            The Radiative Transfer Equation is given by
-
-            <p>
-            $$\nabla I \cdot \omega = -c\, I(x, \omega) + \int_\Omega \beta(|\omega-\omega'|)\, I(x, \omega')$$
-            </p>
-
-            It is useful for
-            <ul>
-            <li>
-            Stellar astrophysics
-            </li>
-            <li>
-            Kelp
-            </li>
-            <li>
-            Nice conversations
-            </li>
-            </ul>
-
-            And is explained well by the following diagram.
-            <br />
-            <br />
-            <img width=300px src="http://soap.siteturbine.com/uploaded_files/www.oceanopticsbook.info/images/WebBook/0dd27b964e95146d0af2052b67c7b5df.png" />
-        """)
+        self._readme_html = EditHTML()
         self._notebook_button = ipw.Button(
             description='Open Notebook',
             button_style='success'
@@ -100,7 +78,7 @@ class WorkflowWidget(ipw.HBox):
         self._log_html = ipw.HTML()
         
         self._readme_area = ipw.VBox([
-            readme_html
+            self._readme_html
         ])
         self._info_area = ipw.VBox([
             self._notebook_button,
@@ -154,11 +132,12 @@ class WorkflowWidget(ipw.HBox):
         self.bqgraph.selected = [0]
         
         # Logic
-        self.bqgraph.observe(self._call_update_metadata_html, names='selected')
+        self.bqgraph.observe(self._call_update_selected_node, names='selected')
         self._log_path_input.on_submit(self._call_read_log)
         
         # Run updates
         self._call_read_log()
+        self._update_readme_html()
     
     def _update_metadata_html(self, metadata):
         html = "<br>".join([
@@ -175,14 +154,40 @@ class WorkflowWidget(ipw.HBox):
             print(html)
         
         self._metadata_html.value = html
-        
+
+    def _update_readme_html(self, task=None):
+        "Link README HTML to task."
+
+        # Break previous link if it exists
+        try:
+            self._readme_link.unlink()
+            self._readme_link = None
+        except AttributeError:
+            pass
+
+        # Only create new link if a task is selected
+        if task is None:
+            #self._readme_html.HTML.value = "None selected."
+            self._update_readme_html(self.workflow)
+        else:
+            # Update displayed HTML before linking
+            self._readme_html.HTML.value = task.readme
+
+            # Link values
+            self._readme_link = traitlets.link(
+                (self._readme_html.HTML, 'value'),
+                (task, 'readme')
+            )
        
-    def _call_update_metadata_html(self, change):
+    def _call_update_selected_node(self, change):
+        """Display information relevant to newly selected node.
+        To be called automatically by widget."""
+
         # Newly selected node (workflow step)
         # (Only take first if several are selected)
-        
         if change['new'] is None:
             metadata = {}
+            node = None
             
         else:
             node_num = change['new'][0]
@@ -194,7 +199,9 @@ class WorkflowWidget(ipw.HBox):
 
             metadata = node.get_user_dict()
 
+        # Update metadata and readme
         self._update_metadata_html(metadata)
+        self._update_readme_html(node)
 
     def _read_log(self, log_path):
         try:
@@ -225,7 +232,7 @@ class WorkerPoolWidget(ipw.VBox):
 
         self._header = ipw.HTML("<h3>Worker Pools</h3>")
         self.table = aux.TableWidget(
-            [["Name", "Workers", "Action"],
+            [["<b>Name</b>", "<b>Workers</b>", "<b>Action</b>"],
             [self._name_text, self._num_workers_text, self._new_button]],
             col_widths=[150,60,100]
         )
@@ -283,7 +290,7 @@ class WorkerPoolWidget(ipw.VBox):
             remove_button.row = self.table.children[-2]
 
             remove_button.on_click(self._remove_button)
-            
+
             self.set_status("WorkerPool '{}' created.".format(name), alert_style='success')
     
     def _watch_add_pool(self, caller):
@@ -291,6 +298,10 @@ class WorkerPoolWidget(ipw.VBox):
         num_workers = self._num_workers_text.value 
         name = self._name_text.value
         self.add_pool(name, num_workers)
+
+        # Reset values
+        self._num_workers_text.value = 1
+        self._name_text.value = ''
         
     def get_pool(self, name):
         "Get worker pool by name"
@@ -315,11 +326,12 @@ class WorkerPoolWidget(ipw.VBox):
             css_class = 'alert alert-{}'.format(alert_style)
             
         self._status_bar.value="""
-        <div class="{css_class}">
+        <div class="{css_class}" style="width: {width}">
         {text}
         </div>
         """.format(
             css_class=css_class,
+            width=self.table.layout.width,
             text=text
         )
    

@@ -7,6 +7,7 @@ import numpy as np
 import ipywidgets as ipw
 from copy import copy, deepcopy
 from IPython.display import display, HTML
+import traitlets
 import os
 import time
 
@@ -16,29 +17,17 @@ from fireworks.core.rocket_launcher import rapidfire
 from concurrent.futures import ThreadPoolExecutor
 
 
-class Worker(object):
-    """Compuational resource on which to execute jobs.
-    Should be created by WorkerPool.
-    """
-
-    def __init__(self, pool, wf_executor='fireworks', *args, **kwargs):
-
-        self.pool = pool
-
-        if wf_executor == 'fireworks':
-            self.fireworker = fw.FWorker(*args, **kwargs)
-
-    def _worker_fw_rapidfire(self, workflow):
-        return rapidfire(
-            launchpad=self.pool.lpad,
-            fworker=self.fireworker
-        )
-
-
-class WorkerPool(object):
+class WorkerPool(traitlets.HasTraits):
     "Pool of workers which can execute jobs."
 
+    futures = traitlets.List()
+    workers = traitlets.List()
+    wf_executor = traitlets.Unicode()
+    name = traitlets.Unicode()
+
     def __init__(self, name, num_workers, wf_executor='fireworks'):
+
+        super().__init__()
 
         self.futures = []
         self.workers = []
@@ -143,8 +132,43 @@ class WorkerPool(object):
         self._fw_rapidfire(workflow)
 
 
-class Workflow(object):
+class Worker(traitlets.HasTraits):
+    """Compuational resource on which to execute jobs.
+    Should be created by WorkerPool.
+    """
+    
+    pool = traitlets.Instance(WorkerPool)
+
+    def __init__(self, pool, wf_executor='fireworks', *args, **kwargs):
+
+        super().__init__()
+
+        self.pool = pool
+
+        if wf_executor == 'fireworks':
+            self.fireworker = fw.FWorker(*args, **kwargs)
+
+    def _worker_fw_rapidfire(self, workflow):
+        return rapidfire(
+            launchpad=self.pool.lpad,
+            fworker=self.fireworker
+        )
+
+
+class Workflow(traitlets.HasTraits):
+
+    dag = traitlets.Instance(networkx.graph.Graph)
+    name = traitlets.Unicode()
+    index_dict = traitlets.Dict()
+    fig_layout = traitlets.Instance(ipw.Layout)
+    task_names = traitlets.List(trait=traitlets.Unicode())
+    wf_executor = traitlets.Unicode(allow_none=True)
+    readme = traitlets.Unicode()
+
     def __init__(self, name):
+
+        super().__init__()
+
         self.dag = networkx.graph.Graph()
         self.name = name
         self.index_dict = {}
@@ -162,6 +186,8 @@ class Workflow(object):
         as soon as possible upon starting the Workflow.
         A Task may appear only once per Workflow.
         """
+
+        super().__init__()
         
         # Ensure that tasks are not repeated.
         if task in self.dag.nodes():
@@ -281,18 +307,35 @@ class Workflow(object):
         pass
 
 
-class Task(object):
+class Task(traitlets.HasTraits):
     "One step in a Workflow. Must have a unique name."
+
+    name = traitlets.Unicode()
+    task_type = traitlets.Unicode()
+    readme = traitlets.Unicode()
+    input_files = traitlets.List(trati=traitlets.Unicode())
+    output_files = traitlets.List(trait=traitlets.Unicode())
+    num_cores = traitlets.Int()
+    index = traitlets.Dict()
+    dependencies = traitlets.Dict()
+    children = traitlets.Dict()
+    params = traitlets.Dict()
+
     def __init__(self, name, input_files=[], output_files=[], 
-                 params={}, num_cores=1, task_type='',
+                 params={}, num_cores=1, task_type='', readme='',
                 substitute_strings=[], substitute_lists=[],
                 user_fields=[]):
         
+        super().__init__()
+
         # Name of task (must be unique)
         self.name = name
         
         # Type of task (Notebook, CommandLine, etc.)
         self.task_type = task_type
+
+        # HTML string (hopefully soon markdown) explaining this task
+        self.readme = readme
         
         # Files which this Task takes as input 
         # and must be present before run.
