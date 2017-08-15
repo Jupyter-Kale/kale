@@ -15,12 +15,14 @@ class EditHTML(ipw.VBox):
         self.ToggleButton = ipw.Button(description='Toggle')
         
         self.elements = [self.HTML, self.Text]
-        self.descriptions = ['Edit', 'Render']
+        self.descriptions = ['Edit Description', 'Render Description']
         ipw.jslink((self.HTML, 'value'), (self.Text, 'value'))
         
         # Set height and width of Textarea
         self.Text.layout.height = u'{}px'.format(text_height)
         self.Text.layout.width = u'95%'
+        self.HTML.layout.border=u'1px lightgray solid'
+        self.HTML.layout.padding=u'10px'
         
         # Set HTML view by default
         self.set_view(0)
@@ -73,7 +75,7 @@ class WorkflowWidget(ipw.HBox):
         )
         self._log_path_input = ipw.Text(
             description='Log path',
-            value='/etc/login.defs'
+            value=''
         )
         self._log_html = ipw.HTML()
         
@@ -81,8 +83,10 @@ class WorkflowWidget(ipw.HBox):
             self._readme_html
         ])
         self._info_area = ipw.VBox([
-            self._notebook_button,
-            self._metadata_html
+            self._readme_html,
+            aux.Space(height=20),
+            self._metadata_html,
+            self._notebook_button
         ])
         self._log_area = ipw.VBox([
             self._log_path_input,
@@ -93,7 +97,7 @@ class WorkflowWidget(ipw.HBox):
         self._graph_figure = self._graph_container.children[0]
         
         self._tab = ipw.Tab([
-            self._readme_area,
+            #self._readme_area,
             self._info_area,
             self._log_area
         ])
@@ -107,13 +111,12 @@ class WorkflowWidget(ipw.HBox):
         ]
         
         # Set attributes
-        self._tab.set_title(0, 'Readme')
-        self._tab.set_title(1, 'Info')
-        self._tab.set_title(2, 'Log')
+        #self._tab.set_title(0, 'Readme')
+        self._tab.set_title(0, 'Info')
+        self._tab.set_title(1, 'Log')
         self._tab.layout.height = self._fig_layout.height
         self._tab.layout.width = self._fig_layout.width
         
-        #self._graph_figure.layout.border = '3px red solid'
         self._graph_figure.fig_margin = dict(
             left=mgin,
             right=mgin,
@@ -136,9 +139,17 @@ class WorkflowWidget(ipw.HBox):
         self._log_path_input.on_submit(self._call_read_log)
         
         # Run updates
-        self._call_read_log()
         self._update_readme_html()
+        self._update_log()
     
+    def _update_log(self, task=None):
+        if task is None:
+            self._log_path_input.value = ''
+            self._log_html.value = ''
+        else:
+            self._log_path_input.value = task.log_path
+            self._call_read_log()
+
     def _update_metadata_html(self, metadata):
         html = "<br>".join([
             """
@@ -202,6 +213,7 @@ class WorkflowWidget(ipw.HBox):
         # Update metadata and readme
         self._update_metadata_html(metadata)
         self._update_readme_html(node)
+        self._update_log(node)
 
     def _read_log(self, log_path):
         try:

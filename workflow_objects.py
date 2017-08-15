@@ -315,14 +315,15 @@ class Task(traitlets.HasTraits):
     readme = traitlets.Unicode()
     input_files = traitlets.List(trati=traitlets.Unicode())
     output_files = traitlets.List(trait=traitlets.Unicode())
+    log_path = traitlets.Unicode()
     num_cores = traitlets.Int()
     index = traitlets.Dict()
     dependencies = traitlets.Dict()
     children = traitlets.Dict()
     params = traitlets.Dict()
 
-    def __init__(self, name, input_files=[], output_files=[], 
-                 params={}, num_cores=1, task_type='', readme='',
+    def __init__(self, name, input_files=[], output_files=[], log_path='',
+                params={}, num_cores=1, task_type='', readme='',
                 substitute_strings=[], substitute_lists=[],
                 user_fields=[]):
         
@@ -341,8 +342,11 @@ class Task(traitlets.HasTraits):
         # and must be present before run.
         self.input_files = input_files
         
-        # Files which are generated or modified by this Taks.
+        # Files which are generated or modified by this Task.
         self.output_files = output_files
+
+        # Path to log file for this Task
+        self.log_path = log_path
         
         # Number of CPU cores to run the task on
         self.num_cores = num_cores
@@ -368,7 +372,8 @@ class Task(traitlets.HasTraits):
         # nonempty lists, they will be included here.
         self._substitute_strings = [
             'name',
-            'task_type'
+            'task_type',
+            'log_path'
         ] + substitute_strings
         self._substitute_lists = [
             'input_files',

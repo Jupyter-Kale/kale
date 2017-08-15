@@ -26,6 +26,7 @@ pwd_task = kale.CommandLineTask(
     name='pwd_task',
     command="""echo "Hello from '`pwd`'." > {out_file}""",
     output_files=["{out_file}"],
+    log_path="{out_file}",
     params=dict(out_file=out_file)
 )
 pwd_task.readme = """
@@ -39,6 +40,7 @@ echo_tasks = [
         name='echo_task_{i}',
         command='for j in {{1..{n_echos}}}; do echo "Hello #{i}: $j" >> {out_file}; sleep 1; done',
         output_files=["{out_file}"],
+        log_path="{out_file}",
         params=dict(out_file=out_file, i=i, n_echos=n_echos)
     )
     for i in range(n_tasks)
@@ -62,6 +64,7 @@ done_task = kale.CommandLineTask(
     name='done_task',
     command="echo 'Done!' >> {out_file}",
     output_files=["{out_file}"],
+    log_path="{out_file}",
     params=dict(out_file=out_file)
 )
 
