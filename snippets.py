@@ -35,3 +35,30 @@ nxg, graph = gen_bq_dag(adj_mat)
 f = bq.Figure(marks=[graph], layout=fig_layout)
 f
 
+rte_html = r"""
+            <h1>Radiative Transfer</h1>
+
+            The Radiative Transfer Equation is given by
+
+            <p>
+            $$\nabla I \cdot \omega = -c\, I(x, \omega) + \int_\Omega \beta(|\omega-\omega'|)\, I(x, \omega')$$
+            </p>
+
+            It is useful for
+            <ul>
+            <li>
+            Stellar astrophysics
+            </li>
+            <li>
+            Kelp
+            </li>
+            <li>
+            Nice conversations
+            </li>
+            </ul>
+
+            And is explained well by the following diagram.
+            <br />
+            <br />
+            <img width=300px src="http://soap.siteturbine.com/uploaded_files/www.oceanopticsbook.info/images/WebBook/0dd27b964e95146d0af2052b67c7b5df.png" />
+        """
