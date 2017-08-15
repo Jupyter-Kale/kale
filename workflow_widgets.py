@@ -79,14 +79,14 @@ class WorkflowWidget(ipw.HBox):
         )
 
         self._worker_pool_selector = ipw.Select()
-        self._play_button = ipw.Button(
+        self._run_button = ipw.Button(
             description='Run Workflow',
             button_style='success'
         )
 
         self._workflow_controls = ipw.VBox([
             self._worker_pool_selector,
-            self._play_button
+            self._run_button
         ])
         self._log_path_input = ipw.Text(
             description='Log path',
@@ -118,6 +118,22 @@ class WorkflowWidget(ipw.HBox):
             self._metadata_html
         ])
 
+        # Log messages produced by WorkflowWidget
+        self._widget_log = ipw.Output()
+        self._widget_log_container = ipw.Box(
+            [self._widget_log],
+            layout=ipw.Layout(
+                padding='10px',
+                border='1px lightgray solid'
+            )
+        )
+        self._widget_log_area = ipw.VBox([
+            ipw.HTML("<b>Messages from WorkflowWidget:</b>"),
+            self._widget_log_container
+        ])
+
+
+        # View for log file produced by workflow
         self._log_area = ipw.VBox([
             self._log_path_input,
             self._log_html
@@ -129,7 +145,8 @@ class WorkflowWidget(ipw.HBox):
         self._tab = ipw.Tab([
             #self._readme_area,
             self._workflow_area,
-            self._task_area
+            self._task_area,
+            self._widget_log_area
             #self._info_area,
             #self._log_area
         ])
@@ -146,6 +163,7 @@ class WorkflowWidget(ipw.HBox):
         #self._tab.set_title(0, 'Readme')
         self._tab.set_title(0, 'Workflow')
         self._tab.set_title(1, 'Task')
+        self._tab.set_title(2, 'Widget Log')
         self._tab.layout.height = self._fig_layout.height
         self._tab.layout.width = self._fig_layout.width
         
@@ -174,6 +192,8 @@ class WorkflowWidget(ipw.HBox):
         self.worker_pool_widget._workflow_widgets += [self]
         # Manually update list.
         self.worker_pool_widget._update_worker_pool_list()
+
+        self._run_button.on_click(self.run_workflow)
 
 
         # Link workflow readme
@@ -288,6 +308,18 @@ class WorkflowWidget(ipw.HBox):
     def _call_read_log(self, caller=None):
         log_path = self._log_path_input.value
         self._read_log(log_path)
+
+    def run_workflow(self, *args):
+        "Run workflow with selected WorkerPool."
+
+        pool = self._worker_pool_selector.value
+        
+        with self._widget_log:
+            print("Attempting to start job.")
+            if pool is None:
+                print("No WorkerPool selected.")
+            else:
+                pool.fw_run(self.workflow)
 
 
 class WorkerPoolWidget(ipw.VBox):
