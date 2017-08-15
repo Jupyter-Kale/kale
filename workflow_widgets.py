@@ -12,11 +12,11 @@ class EditHTML(ipw.VBox):
         super().__init__()
         self.HTML = ipw.HTMLMath(value=value)
         self.Text = ipw.Textarea(value=value)
-        self.ToggleButton = ipw.Button(description='Toggle')
+        self.toggle_button = ipw.Button(description='Toggle')
         
         self.elements = [self.HTML, self.Text]
         self.descriptions = ['Edit Description', 'Render Description']
-        ipw.jslink((self.HTML, 'value'), (self.Text, 'value'))
+        traitlets.link((self.HTML, 'value'), (self.Text, 'value'))
         
         # Set height and width of Textarea
         self.Text.layout.height = u'{}px'.format(text_height)
@@ -25,30 +25,33 @@ class EditHTML(ipw.VBox):
         self.HTML.layout.padding=u'10px'
         
         # Set HTML view by default
+        # 0 = HTML view
+        # 1 = Edit view
         self.set_view(0)
         
-        self.ToggleButton.on_click(self.toggle)
+        self.toggle_button.on_click(self.toggle)
     
     def set_view(self, state):
         self.state = state
-        self.children = [self.elements[state], self.ToggleButton]
-        self.ToggleButton.description = self.descriptions[state]
+        self.children = [self.elements[state], self.toggle_button]
+        self.toggle_button.description = self.descriptions[state]
         
     def toggle(self, caller):
         self.set_view((self.state+1)%2)
 
 class WorkflowWidget(ipw.HBox):
     "Widget to draw DAG via bqplot and provide node-level info/interaction."
-    
+
     @property
     def bqgraph(self):
         return self.workflow.get_bqgraph()
     
-    def __init__(self, workflow):
+    def __init__(self, workflow, worker_pool_widget):
         super().__init__()
         
         # Define variables
         self.workflow = workflow
+        self.worker_pool_widget = worker_pool_widget
         self._fig_layout = ipw.Layout(width='400px', height='600px')
         self._xs = bq.LinearScale()
         self._ys = bq.LinearScale()
@@ -56,7 +59,7 @@ class WorkflowWidget(ipw.HBox):
         mgin = 10
 
         # Link which binds readme text of selected task to displayed value
-        self._readme_link = None
+        self._task_readme_link = None
         
         # Define elements
         self._metadata_template = """
@@ -68,26 +71,53 @@ class WorkflowWidget(ipw.HBox):
         """
         self._metadata_html = ipw.HTML()
         
-        self._readme_html = EditHTML()
+        self._workflow_readme_html = EditHTML()
+        self._task_readme_html = EditHTML()
         self._notebook_button = ipw.Button(
             description='Open Notebook',
             button_style='success'
         )
+
+        self._worker_pool_selector = ipw.Select()
+        self._play_button = ipw.Button(
+            description='Run Workflow',
+            button_style='success'
+        )
+
+        self._workflow_controls = ipw.VBox([
+            self._worker_pool_selector,
+            self._play_button
+        ])
         self._log_path_input = ipw.Text(
             description='Log path',
-            value=''
+            value='',
+            disabled=True
         )
         self._log_html = ipw.HTML()
         
-        self._readme_area = ipw.VBox([
-            self._readme_html
+        # self._info_area = ipw.VBox([
+        #     self._readme_html,
+        #     aux.Space(height=20),
+        #     self._metadata_html,
+        #     self._notebook_button
+        # ])
+        
+        self._workflow_area = ipw.VBox([
+            ipw.HTML("<h3>Workflow Description</h3>"),
+            self._workflow_readme_html,
+            aux.Space(height='20px'),
+            ipw.HTML("<h3>Worker Pools</h3>"),
+            self._workflow_controls
         ])
-        self._info_area = ipw.VBox([
-            self._readme_html,
+
+        self._task_area = ipw.VBox([
+            ipw.HTML("<h3>Task Description</h3>"),
+            self._task_readme_html,
             aux.Space(height=20),
-            self._metadata_html,
-            self._notebook_button
+            ipw.HTML("<h3>Task Metadata</h3>"),
+            self._metadata_html
         ])
+
         self._log_area = ipw.VBox([
             self._log_path_input,
             self._log_html
@@ -98,8 +128,10 @@ class WorkflowWidget(ipw.HBox):
         
         self._tab = ipw.Tab([
             #self._readme_area,
-            self._info_area,
-            self._log_area
+            self._workflow_area,
+            self._task_area
+            #self._info_area,
+            #self._log_area
         ])
         
         self.output_area = ipw.Output()
@@ -112,8 +144,8 @@ class WorkflowWidget(ipw.HBox):
         
         # Set attributes
         #self._tab.set_title(0, 'Readme')
-        self._tab.set_title(0, 'Info')
-        self._tab.set_title(1, 'Log')
+        self._tab.set_title(0, 'Workflow')
+        self._tab.set_title(1, 'Task')
         self._tab.layout.height = self._fig_layout.height
         self._tab.layout.width = self._fig_layout.width
         
@@ -137,6 +169,19 @@ class WorkflowWidget(ipw.HBox):
         # Logic
         self.bqgraph.observe(self._call_update_selected_node, names='selected')
         self._log_path_input.on_submit(self._call_read_log)
+
+        # Inform worker_pool_widget of association
+        self.worker_pool_widget._workflow_widgets += [self]
+        # Manually update list.
+        self.worker_pool_widget._update_worker_pool_list()
+
+
+        # Link workflow readme
+        self._workflow_readme_html.HTML.value = self.workflow.readme
+        self._workflow_readme_link = traitlets.link(
+            (self._workflow_readme_html.HTML, 'value'),
+            (self.workflow, 'readme')
+        )
         
         # Run updates
         self._update_readme_html()
@@ -169,26 +214,42 @@ class WorkflowWidget(ipw.HBox):
     def _update_readme_html(self, task=None):
         "Link README HTML to task."
 
+        # if task is None:
+        #     name = 'None'
+        #     readme = 'None'
+        # else:
+        #     name = task.name
+        #     readme = task.readme
+        # print("Updating to task '{}'".format(name))
+        # print("Readme: '{}'".format(readme))
+
         # Break previous link if it exists
         try:
-            self._readme_link.unlink()
-            self._readme_link = None
+            self._task_readme_link.unlink()
+            self._task_readme_link = None
         except AttributeError:
             pass
 
         # Only create new link if a task is selected
         if task is None:
-            #self._readme_html.HTML.value = "None selected."
-            self._update_readme_html(self.workflow)
+            self._task_readme_html.HTML.value = "None selected."
+
+            # Disable editing if nothing is selected.
+            self._task_readme_html.toggle_button.disabled = True
+
+            # Switch to HTML view if currently in edit mode.
+            self._task_readme_html.set_view(0)
         else:
             # Update displayed HTML before linking
-            self._readme_html.HTML.value = task.readme
+            self._task_readme_html.HTML.value = task.readme
 
             # Link values
-            self._readme_link = traitlets.link(
-                (self._readme_html.HTML, 'value'),
+            self._task_readme_link = traitlets.link(
+                (self._task_readme_html.HTML, 'value'),
                 (task, 'readme')
             )
+
+            self._task_readme_html.toggle_button.disabled = False
        
     def _call_update_selected_node(self, change):
         """Display information relevant to newly selected node.
@@ -231,6 +292,11 @@ class WorkflowWidget(ipw.HBox):
 
 class WorkerPoolWidget(ipw.VBox):
     "GUI widget for managing WorkerPools."
+
+    _pool_list = traitlets.List()
+    _pool_dict = traitlets.Dict()
+    _workflow_widgets = traitlets.List()
+
     def __init__(self):
         
         # UI
@@ -261,8 +327,12 @@ class WorkerPoolWidget(ipw.VBox):
             width=u'{}px'.format(int_text_width)
         )
         
-        # Logic
+        # Traits
         self._pool_dict = {}
+        self._pool_list = []
+        self._workflow_widgets = []
+
+        # Logic
         self._name_text.on_submit(self._watch_add_pool)
         self._new_button.on_click(self._watch_add_pool)
         
@@ -289,6 +359,9 @@ class WorkerPoolWidget(ipw.VBox):
             )
 
             self._pool_dict[name] = pool
+            self._pool_list.append(
+                (pool.name, pool)
+            )
             self.table.insert_row(
                 -1,
                 [name, str(num_workers), remove_button]
@@ -302,6 +375,9 @@ class WorkerPoolWidget(ipw.VBox):
             remove_button.row = self.table.children[-2]
 
             remove_button.on_click(self._remove_button)
+
+            # Manually update widgets.
+            self._update_worker_pool_list()
 
             self.set_status("WorkerPool '{}' created.".format(name), alert_style='success')
     
@@ -324,7 +400,22 @@ class WorkerPoolWidget(ipw.VBox):
         row = self.table.pop_row(index)
         name = row.children[0].children[0].value
         pool = self._pool_dict.pop(name)
+        self._pool_list.pop(self._pool_list.index((pool.name, pool)))
+        # Have to use '=' for .observe to be called
+        self._pool_list = self._pool_list
+
+        # Manually update widgets.
+        self._update_worker_pool_list()
+
         self.set_status("WorkerPool '{}' removed.".format(name), alert_style='warning')
+
+    def _update_worker_pool_list(self):
+        """
+        Due to a traitlets bug, we have to manually update
+        the pool list in the WorkflowWidget.
+        """
+        for ww in self._workflow_widgets:
+            ww._worker_pool_selector.options = self._pool_list
 
     def _remove_button(self, button):
         "To be called by remove button."
