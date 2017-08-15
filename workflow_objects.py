@@ -545,11 +545,13 @@ class BatchTask(Task):
         self.batch_script = batch_script
         
         user_fields = ['batch_script']
+        substitute_strings = ['batch_script']
         
         super().__init__(
             name=name, 
             task_type='BatchTask',
             user_fields=user_fields,
+            substitute_strings=substitute_strings,
             **kwargs
         )
         
