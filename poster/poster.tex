@@ -18,6 +18,7 @@
 \setlength{\TP@visibletextheight}{\textheight-2\TP@innermargin}
 \makeatother
 
+
 %% Tikzposter is highly customizable: please see
 %% https://bitbucket.org/surmann/tikzposter/downloads/styleguide.pdf
 
@@ -46,8 +47,10 @@
 %\setmainfont{FreeSerif}
 %\setsansfont{FreeSans}
 
+%\colorlet{backgroundcolor}{white}
+
 \author{Matt Henderson, Oliver Evans, Shreyas Cholia, Fernando P\'{e}rez}
-\title{Kale: Human-in-the-loop High Performance Computing with Jupyter}
+\title{Science at the Speed of Thought: Enhancing Jupyter for ``Human-in-the-loop'' Supercomputing}
 \institute{Lawrence Berkeley National Laboratory}
 %% Optional title graphic
 %\titlegraphic{\includegraphics[width=7cm]{IMG_1934}}
@@ -58,9 +61,8 @@
 \begin{document}
 \maketitle
 
-
 \begin{columns}
-\column{0.7}
+\column{0.3}
 
 \block{Overview} {
     \begin{itemize}
@@ -114,13 +116,44 @@
 
 \column{0.3}
 
-\block{Screenshot}{%
-This screenshot has nothing to do with our project.
-\begin{tikzfigure}[Figures in tikzposter]
-    Test \\
-    \includegraphics[width=\linewidth]{example-notebook}
-\end{tikzfigure}
+% \block{Screenshot}{%
+% This screenshot has nothing to do with our project.
+% \begin{tikzfigure}[Figures in tikzposter]
+%     Test \\
+%     \includegraphics[width=\linewidth]{example-notebook}
+% \end{tikzfigure}
+% }
+
+
+\block{Workflow Widget} {
+    \includegraphics[width=\linewidth]{../img/screenshot/droplet_wf}
 }
+\block{NEWT Auth} {
+    \includegraphics[width=\linewidth]{../img/screenshot/newt_auth}
+}
+\block{Queue Monitoring} {
+    \includegraphics[width=\linewidth]{../img/screenshot/queue}
+}
+\column{0.3}
+\block{SSH Authentication} {
+    \includegraphics[width=\linewidth]{../img/screenshot/ssh_auth}
+}
+\block{Watch Live Output} {
+    \includegraphics[width=\linewidth]{../img/screenshot/tail}
+}
+\block{Remote Workers} {
+    \includegraphics[width=\linewidth]{../img/screenshot/worker_pool}
+}
+
+% \block{NEWT Auth} {
+% \includegraphics[width=\linewidth]{../img/screenshot/newt_auth}
+% }
+% 
+% \block{Worker Pool} {
+% \includegraphics[width=\linewidth]{../img/screenshot/worker_pool}
+% }
+
+\column{0.3}
 
 \end{columns}
 
