@@ -192,6 +192,7 @@ class WorkflowWidget(ipw.HBox):
         self.bqgraph.selected = [0]
 
         self._thread_pool = ThreadPoolExecutor()
+        self.future = None
         
         # Logic
         self.bqgraph.observe(self._call_update_selected_node, names='selected')
@@ -323,19 +324,37 @@ class WorkflowWidget(ipw.HBox):
         self._read_log(log_path)
 
     def _run_wrapper(self, *args):
-        self._thread_pool.submit(self.run_workflow)
+        with self._widget_log:
+            try:
+                if not self.future.running():
+                    self._thread_pool.submit(self.run_workflow)
+                    print("Workflow submitted.")
+                else:
+                    print("Workflow already running.")
+            except AttributeError:
+                self._thread_pool.submit(self.run_workflow)
+                print("Workflow submitted.")
 
     def run_workflow(self, *args):
         "Run workflow with selected WorkerPool."
 
-        pool = self._worker_pool_selector.value
-        
-        with self._widget_log:
-            print("Attempting to start job.")
-            if pool is None:
-                print("No WorkerPool selected.")
-            else:
-                pool.fw_run(self.workflow)
+        # Disable start job button upon submission
+        self._run_button.disabled = True
+
+        try:
+            pool = self._worker_pool_selector.value
+            
+            with self._widget_log:
+                print("Attempting to start job.")
+                if pool is None:
+                    print("No WorkerPool selected.")
+                else:
+                    pool.fw_run(self.workflow)
+
+        finally:
+            # Enable start job button after workflow is finished.
+            # (finally ensures reenabling on success or failure)
+            self._run_button.disabled = False
 
 
 class WorkerPoolWidget(ipw.VBox):
@@ -346,11 +365,16 @@ class WorkerPoolWidget(ipw.VBox):
     _workflow_widgets = traitlets.List()
 
     def __init__(self):
+
+        # Keep track of available hosts
+        self.ssh_hosts = aux.SSHAuthWidget.open_connections
         
         # UI
         self.out_area = ipw.Output()
         self._name_text = ipw.Text()
-        self._location_text = ipw.Text(value='localhost')
+        self._location_text = ipw.Dropdown(
+            options=self.get_locations()
+        )
         self._num_workers_text = ipw.IntText(value=1)
         self._new_button = ipw.Button(
             icon="plus",
@@ -364,7 +388,7 @@ class WorkerPoolWidget(ipw.VBox):
             [self._name_text, self._location_text,
             self._num_workers_text, self._new_button]],
 
-            col_widths=[150, 150, 60, 100]
+            col_widths=[150, 200, 60, 100]
         )
         self._status_bar = ipw.HTML()
 
@@ -395,6 +419,10 @@ class WorkerPoolWidget(ipw.VBox):
         super().__init__(
             children=[self._header, self.table, self._status_bar]
         )
+
+    def get_locations(self):
+        "Get locations where workers can be created."
+        return ['localhost'] + list(self.ssh_hosts.keys())
 
     def add_pool(self, name, num_workers, location='localhost'):
         "Add WorkerPool with name `name` and `num_workers` workers to widget."
@@ -440,8 +468,9 @@ class WorkerPoolWidget(ipw.VBox):
     def _watch_add_pool(self, caller):
         "Add worker pool to widget. To be called by button."
         num_workers = self._num_workers_text.value 
+        location = self._location_text.value
         name = self._name_text.value
-        self.add_pool(name, num_workers)
+        self.add_pool(name, location=location, num_workers=num_workers)
 
         # Reset values
         self._num_workers_text.value = 1
@@ -520,7 +549,7 @@ class TailWidget(ipw.VBox):
             )
         )
         self.start_button = ipw.Button(
-            description='Start tail',
+            description='Start',
             button_style='success'
         )
         

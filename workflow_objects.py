@@ -131,6 +131,7 @@ class WorkerPool(traitlets.HasTraits):
     @_verify_executor('fireworks')
     def fw_run(self, workflow):
         "Queue jobs from workflow and execute them all via Fireworks."
+        print("FW Run")
         self._fw_queue(workflow)
         self._fw_rapidfire(workflow)
 
