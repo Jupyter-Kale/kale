@@ -24,8 +24,10 @@ class WorkerPool(traitlets.HasTraits):
     workers = traitlets.List()
     wf_executor = traitlets.Unicode()
     name = traitlets.Unicode()
+    location = traitlets.Unicode()
+    num_workers = traitlets.Int()
 
-    def __init__(self, name, num_workers, wf_executor='fireworks'):
+    def __init__(self, name, num_workers, location='localhost',  wf_executor='fireworks'):
 
         super().__init__()
 
@@ -33,6 +35,7 @@ class WorkerPool(traitlets.HasTraits):
         self.workers = []
         self.wf_executor = wf_executor
         self.name = name
+        self.location = location
         self.log_area = ipw.Output()
 
         self._add_workers(num_workers)
@@ -373,7 +376,8 @@ class Task(traitlets.HasTraits):
         self._substitute_strings = [
             'name',
             'task_type',
-            'log_path'
+            'log_path',
+            'readme'
         ] + substitute_strings
         self._substitute_lists = [
             'input_files',

@@ -4,15 +4,17 @@
 import ipywidgets as ipw
 import aux_widgets as aux
 import workflow_objects as kale
+import time
 import traitlets
 import bqplot as bq
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 class EditHTML(ipw.VBox):
     def __init__(self, value='', text_height=400):
         super().__init__()
         self.HTML = ipw.HTMLMath(value=value)
         self.Text = ipw.Textarea(value=value)
-        self.toggle_button = ipw.Button(description='Toggle')
+        self.toggle_button = ipw.Button()
         
         self.elements = [self.HTML, self.Text]
         self.descriptions = ['Edit Description', 'Render Description']
@@ -103,23 +105,26 @@ class WorkflowWidget(ipw.HBox):
         # ])
         
         self._workflow_area = ipw.VBox([
-            ipw.HTML("<h3>Workflow Description</h3>"),
+            ipw.HTML("<b>Workflow Description</b>"),
             self._workflow_readme_html,
-            aux.Space(height='20px'),
-            ipw.HTML("<h3>Worker Pools</h3>"),
+            aux.Space(height=20),
+            ipw.HTML("<b>Worker Pools</b>"),
             self._workflow_controls
         ])
 
         self._task_area = ipw.VBox([
-            ipw.HTML("<h3>Task Description</h3>"),
+            ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
             aux.Space(height=20),
-            ipw.HTML("<h3>Task Metadata</h3>"),
+            ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
         ])
 
         # Log messages produced by WorkflowWidget
         self._widget_log = ipw.Output()
+        self._log_clear_button = ipw.Button(
+            description="Clear"
+        )
         self._widget_log_container = ipw.Box(
             [self._widget_log],
             layout=ipw.Layout(
@@ -129,7 +134,9 @@ class WorkflowWidget(ipw.HBox):
         )
         self._widget_log_area = ipw.VBox([
             ipw.HTML("<b>Messages from WorkflowWidget:</b>"),
-            self._widget_log_container
+            self._widget_log_container,
+            aux.Space(10),
+            self._log_clear_button
         ])
 
 
@@ -183,17 +190,20 @@ class WorkflowWidget(ipw.HBox):
         # Default selections
         self._tab.selected_index = 0
         self.bqgraph.selected = [0]
+
+        self._thread_pool = ThreadPoolExecutor()
         
         # Logic
         self.bqgraph.observe(self._call_update_selected_node, names='selected')
         self._log_path_input.on_submit(self._call_read_log)
+        self._log_clear_button.on_click(self._clear_widget_log)
 
         # Inform worker_pool_widget of association
         self.worker_pool_widget._workflow_widgets += [self]
         # Manually update list.
         self.worker_pool_widget._update_worker_pool_list()
 
-        self._run_button.on_click(self.run_workflow)
+        self._run_button.on_click(self._run_wrapper)
 
 
         # Link workflow readme
@@ -206,6 +216,9 @@ class WorkflowWidget(ipw.HBox):
         # Run updates
         self._update_readme_html()
         self._update_log()
+
+    def _clear_widget_log(self, *args, **kwargs):
+        self._widget_log.clear_output()
     
     def _update_log(self, task=None):
         if task is None:
@@ -309,6 +322,9 @@ class WorkflowWidget(ipw.HBox):
         log_path = self._log_path_input.value
         self._read_log(log_path)
 
+    def _run_wrapper(self, *args):
+        self._thread_pool.submit(self.run_workflow)
+
     def run_workflow(self, *args):
         "Run workflow with selected WorkerPool."
 
@@ -334,6 +350,7 @@ class WorkerPoolWidget(ipw.VBox):
         # UI
         self.out_area = ipw.Output()
         self._name_text = ipw.Text()
+        self._location_text = ipw.Text(value='localhost')
         self._num_workers_text = ipw.IntText(value=1)
         self._new_button = ipw.Button(
             icon="plus",
@@ -342,18 +359,25 @@ class WorkerPoolWidget(ipw.VBox):
 
         self._header = ipw.HTML("<h3>Worker Pools</h3>")
         self.table = aux.TableWidget(
-            [["<b>Name</b>", "<b>Workers</b>", "<b>Action</b>"],
-            [self._name_text, self._num_workers_text, self._new_button]],
-            col_widths=[150,60,100]
+            [["<b>Name</b>", "<b>Location</b>",
+            "<b>Workers</b>", "<b>Action</b>"],
+            [self._name_text, self._location_text,
+            self._num_workers_text, self._new_button]],
+
+            col_widths=[150, 150, 60, 100]
         )
         self._status_bar = ipw.HTML()
 
         # Layout
         # IntText needs to be 2 pixels smaller than its container
         name_text_width = self.table.col_widths_int[0]-2
-        int_text_width = self.table.col_widths_int[1]-2
+        location_text_width = self.table.col_widths_int[1]-2
+        int_text_width = self.table.col_widths_int[2]-2
         self._name_text.layout=ipw.Layout(
             width=u'{}px'.format(name_text_width)
+        )
+        self._location_text.layout=ipw.Layout(
+            width=u'{}px'.format(location_text_width)
         )
         self._num_workers_text.layout=ipw.Layout(
             width=u'{}px'.format(int_text_width)
@@ -372,7 +396,7 @@ class WorkerPoolWidget(ipw.VBox):
             children=[self._header, self.table, self._status_bar]
         )
 
-    def add_pool(self, name, num_workers):
+    def add_pool(self, name, num_workers, location='localhost'):
         "Add WorkerPool with name `name` and `num_workers` workers to widget."
         # Check for name conflicts
         if name in self._pool_dict.keys():
@@ -383,7 +407,7 @@ class WorkerPoolWidget(ipw.VBox):
         else:
 
             with self.out_area:
-                pool = kale.WorkerPool(name, num_workers)
+                pool = kale.WorkerPool(name, num_workers, location)
 
             remove_button = ipw.Button(
                 description="Remove",
@@ -396,7 +420,7 @@ class WorkerPoolWidget(ipw.VBox):
             )
             self.table.insert_row(
                 -1,
-                [name, str(num_workers), remove_button]
+                [name, location, str(num_workers), remove_button]
             )
 
             # Store row information in remove_button so that the 
@@ -469,5 +493,127 @@ class WorkerPoolWidget(ipw.VBox):
             width=self.table.layout.width,
             text=text
         )
-   
+
+class TailWidget(ipw.VBox):
+    "Tail a file. (traitfully!)"
+    
+    def __init__(self, path='', width=500, padding=10):
+        super().__init__()
+        
+        self.path = ipw.Text(
+            description='File path',
+            value=path,
+            disabled=False
+        )
+        self.dt = ipw.FloatText(
+            description='dt',
+            value=1,
+            layout=ipw.Layout(
+                width='150px'
+            )
+        )
+        self.num_lines = ipw.IntText(
+            description='# of lines',
+            value=20,
+            layout=ipw.Layout(
+                width='150px'
+            )
+        )
+        self.start_button = ipw.Button(
+            description='Start tail',
+            button_style='success'
+        )
+        
+        self.text = ipw.HTML()
+        
+        body_width=width-2*padding -2
+        button_width=100
+        
+        inner_layout = ipw.Layout(
+            width='{}px'.format(body_width)
+        )
+        
+        self.controls = ipw.VBox([
+            ipw.HBox([
+                self.path,
+                self.start_button,
+            ], layout=inner_layout),
+            ipw.HBox([
+                self.dt,
+                self.num_lines
+            ], layout=inner_layout)
+        ])
+        
+        
+        self._text_container = ipw.Box(
+            [self.text],
+            layout=ipw.Layout(
+                padding='{}px'.format(padding),
+                border='1px lightgray solid',
+                width='{}px'.format(body_width)
+            )
+        )
+        
+        self.layout=ipw.Layout(
+            padding='{}px'.format(padding),
+            border='1px lightgray solid',
+            width='{}px'.format(width)
+            
+        )
+        
+        self.children = [
+            ipw.HTML("<b>File Tailer</b>"),
+            self.controls,
+            aux.Space(padding),
+            self._text_container
+        ]
+        
+        self._button_texts = ["Start", "Stop"]
+        self._button_styles = ["success", "danger"]
+        # Start off with button saying "Start"
+        self._button_state = 0
+        self.keep_watching = False
+        
+        self.thread_pool = ThreadPoolExecutor()
+
+        # Future returned by watching process
+        self.future = None
+        
+        # Logic
+        self.start_button.on_click(self.click_button)
+    
+    def tail(self):
+        "Tail file once and print to text area."
+        try:
+            with open(self.path.value) as fh:
+                text = '<br>'.join(fh.readlines()[-self.num_lines.value:])
+        except IOError:
+            text = "Error opening '{}'".format(self.path.value)
+            self._toggle_button()
+            
+        self.text.value = text
+    
+    def watch_file(self):
+        "Periodically read file and print to text area."
+        while self.keep_watching:
+            self.tail()
+            time.sleep(self.dt.value)
+        
+    
+    def _set_button_state(self, state):
+        "Set button state."
+        self._button_state = state
+        self.start_button.description = self._button_texts[state]
+        self.start_button.button_style = self._button_styles[state]
+        self.keep_watching = bool(state)
+        
+    def _toggle_button(self):
+        "Flip button state."
+        self._set_button_state((self._button_state+1)%2)
+
+    def click_button(self,*args):
+        "Toggle button and watch file when button is clicked."
+        self._toggle_button()
+        self.future = self.thread_pool.submit(self.watch_file)
+        
 
