@@ -16,8 +16,20 @@ We seek to harness the power of Jupyter to bring these qualities to full scienti
 ## Exploration
 Scientists love to explore.
 But being constrained by computational resources, scientific computing tends to focus on maximizing computational efficiency, while sacrificing human involvement.
-By combining the raw power of high performance computing resources with the flexibility of Jupyter
+By combining the raw power of high performance computing resources with the flexibility of Jupyter, we can go from idea to implementation in minutes, even on the biggest problems.
 
+## Narrative
+Having Markdown and $\LaTeX$ right next to your code allows you to tell the full story of what's going on in a notebook in a clear and cohesive manner.
+With formulas, images, tables, and even movies embedded right in the document, communicating complex concepts is so much more feasible than through code comments alone.
+While sharing code is essential for open science and reproducibility, it usually doesn't go very far without context.
+
+By bringing the power of narrative from the individual notebook to full workflows, we hope to make HPC workflows as easy to share effectively as small individual notebooks.
+
+## Interactivity
+Being able to touch your data and models provides a deeper ability to understand them.
+The Jupyter widget ecosystem provides a wide range of interactive elements that allow for the visualization and exploration of high dimensional spaces.
+In HPC systems, interactivity has generally been at the bottom of the food chain.
+We hope to bridge that gap by providing an easy means by which to examine simulations and analysis codes as they run, and to be able to have interactive pieces of a scientific workflow, where you know that you're going to need human interaction in between computational tasks.
 
 
 ## What do I really mean?
@@ -38,7 +50,6 @@ By combining the raw power of high performance computing resources with the flex
 - Widgets - sliders, text input, controllers, etc.
 - Allow you to interact directly with data & models
 - Visualization & experimentation
----
 
 ## Kale
 ### Exploration
