@@ -1,14 +1,20 @@
 %% Poster for JupyterCon
 \documentclass{tikzposter}
+\usepackage{lipsum}
+
+\renewcommand{\familydefault}{\sfdefault}
 
 \usepackage{geometry}
 \geometry{
-	papersize={90in, 44.5in},
+	papersize={48in, 36in},
 }
 
 
 \usepackage{lmodern}
-\usepackage[fontsize=24pt]{scrextend}
+\usepackage{multicol}
+\usepackage{booktabs}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
 
 % Recalculate page size
@@ -30,7 +36,7 @@
 % \usetheme{Simple}
 % \usetheme{Envelope}
 % \usetheme{Wave}
-% \usetheme{Board}
+%\usetheme{Board}
 % \usetheme{Autumn}
 % \usetheme{Desert}
 
@@ -38,9 +44,9 @@
 % \usetitlestyle{Default}
 % \usetitlestyle{Basic}
 % \usetitlestyle{Empty}
-% \usetitlestyle{Filled}
+\usetitlestyle{Filled}
 % \usetitlestyle{Envelope}
-% \usetitlestyle{Wave}
+%\usetitlestyle{Wave}
 % \usetitlestyle{verticalShading}
 
 %\usepackage{fontspec}
@@ -62,98 +68,136 @@
 \maketitle
 
 \begin{columns}
+\column{0.45}
+
+\block{Abstract} {
+Abstract
+     High Performance Computing (HPC) systems and workflows process and analyze data produced by large-scale experiments and simulations, such as first-principles materials structure calculations, supernovae simulations, and mass spectrometry image analysis. 
+ These largely focus on a non-interactive, asynchronous, batch execution process that can use thousands of cores and run for hours to days. 
+ Historically, these systems have not been designed to maximize the human utility and ease of interactive use, but rather to optimize for raw performance. 
+
+     Simplifying and accelerating the mode of experimentation, which aligns with how scientists think and operate, is key to enhancing their productivity. 
+ This includes easy job submission and resubmission, introspection of jobs and their contents as they run, and easy ways of intercepting and manipulating data inputs and outputs for analysis and chaining of operations into pipelines. 
+ Introducing interactivity to scientific HPC applications and workflows provides a key missing human-in-the-loop capability to inspect the state of an execution in real time. 
+ The Jupyter architecture (kernels, Notebooks, widgets, etc.) provides a solid foundation to address these challenges, and is already familiar to many scientists, but is missing certain key ingredients. 
+}
+
+\block{Key Features} {
+\begin{multicols}{2}
+\begin{itemize}
+    \item  Build \& submit workflows in a notebook via Python API
+    \item  Jupyter Notebooks as interactive workflow steps
+    \item  Rich markdown workflow/task descriptions
+    \item  Submit batch jobs
+    \item  Use existing Workflow Software
+    \item  Interact with tasks via kernels
+    \item  Monitor HPC jobs via plots/logs
+    \item  Modular Widget Interface
+    \item  Run all or part of a workflow
+    \item  Export workflows to YAML
+\end{itemize}
+\end{multicols}
+}
+
+ \block{System Schematics} {
+     \includegraphics[width=\linewidth]{Kale_HPC}
+ }
+ 
 \column{0.3}
 
-\block{Overview} {
-    \begin{itemize}
-        \item We try to do this. What?
-        \item we try to do that.
-    \end{itemize}
-}
-
-\block{Scientific HPC Systems} {
-    \begin{itemize}
-        \item Optimized for machine efficiency
-        \item Assumes automated workflows
-        \item Post-mortem analyses
-    \end{itemize}
-}
-
-\block{Scientific Workflows Operated by Humans} {
-    \begin{itemize}
-        \item Manual inspection
-        \item Manual intervention
-        \item Experimentation and Dynamic updates during execution
-    \end{itemize}
-}
-
-\block{Jupyter Interactive HPC} {
-    \begin{itemize}
-        \item Realtime Dashboards and Widgets
+\block{Define Workflows} {
+    \begin{minipage}{.6\linewidth}
+        \includegraphics[width=\linewidth]{../img/screenshot/define} \\
+    \end{minipage}
+    \begin{minipage}{.39\linewidth}
         \begin{itemize}
-            \item Batch Queues
-            \item Workflow status
-            \item Task resource use
-            \item Task file output
+            \item Define workflows via Python
+            \item Simple API
+            \item Refer to tasks by name
+            \item Data provenance
+            \item Easy parameter substitution
         \end{itemize}
-        \item Workflow Control Center
-        \begin{itemize}
-            \item Build
-            \item Control
-            \item Interact
-        \end{itemize}
-    \end{itemize}
-}    
+    \end{minipage}
 
-\block{Development Environment} {
-    \begin{itemize}
-        \item Development Environment
-        \item Remote kernels
-        \item Resource details for debugging
-    \end{itemize}
+    \vspace{-1.5em}
+}
+
+\block{Visualize \& Run} {
+    \includegraphics[width=\linewidth]{../img/screenshot/visualize_droplet}
+}
+
+\block{Observe Live Output} {
+\begin{multicols}{2}
+    \includegraphics[width=\linewidth]{../img/screenshot/peptide} \\
+    \includegraphics[width=.95\linewidth]{../img/screenshot/tail}
+\end{multicols}
 }
 
 
-\column{0.3}
+\column{0.25}
 
-% \block{Screenshot}{%
-% This screenshot has nothing to do with our project.
-% \begin{tikzfigure}[Figures in tikzposter]
-%     Test \\
-%     \includegraphics[width=\linewidth]{example-notebook}
-% \end{tikzfigure}
-% }
+\block{Principles} {
 
+Jupyter brings several key features to the world of computational
+science: Exploration, Narrative, and Interactivity
 
-\block{Workflow Widget} {
-    \includegraphics[width=\linewidth]{../img/screenshot/droplet_wf}
-}
-\block{NEWT Auth} {
-    \includegraphics[width=\linewidth]{../img/screenshot/newt_auth}
-}
-\block{Queue Monitoring} {
-    \includegraphics[width=\linewidth]{../img/screenshot/queue}
-}
-\column{0.3}
-\block{SSH Authentication} {
-    \includegraphics[width=\linewidth]{../img/screenshot/ssh_auth}
-}
-\block{Watch Live Output} {
-    \includegraphics[width=\linewidth]{../img/screenshot/tail}
-}
-\block{Remote Workers} {
-    \includegraphics[width=\linewidth]{../img/screenshot/worker_pool}
-}
+While these are powerful qualities, Jupyter presently operates at the
+level of an individual notebook in one language. We seek to harness the
+power of Jupyter to bring these qualities to full scientific workflows,
+which often involve many steps across a variety of languages.
 
-% \block{NEWT Auth} {
-% \includegraphics[width=\linewidth]{../img/screenshot/newt_auth}
-% }
-% 
-% \block{Worker Pool} {
-% \includegraphics[width=\linewidth]{../img/screenshot/worker_pool}
-% }
+\section*{Exploration}\label{exploration}
 
-\column{0.3}
+Scientists love to explore. But being constrained by computational
+resources, scientific computing tends to focus on maximizing
+computational efficiency, while sacrificing human involvement. By
+combining the raw power of high performance computing resources with the
+flexibility of Jupyter, we can go from idea to implementation in
+minutes, even on the biggest problems.
+
+\section*{Narrative}\label{narrative}
+
+Having Markdown and LaTeX right next to your code allows you to tell the
+full story of what's going on in a notebook in a clear and cohesive
+manner. With formulas, images, tables, and even movies embedded right in
+the document, communicating complex concepts is so much more feasible
+than through code comments alone. While sharing code is essential for
+open science and reproducibility, it usually doesn't go very far without
+context.
+
+By bringing the power of narrative from the individual notebook to full
+workflows, we hope to make HPC workflows as easy to share effectively as
+small individual notebooks.
+
+\section*{Interactivity}\label{interactivity}
+
+Being able to touch your data and models provides a deeper ability to
+understand them. The Jupyter widget ecosystem provides a wide range of
+interactive elements that allow for the visualization and exploration of
+high dimensional spaces. In HPC systems, interactivity has generally
+been at the bottom of the food chain. We hope to bridge that gap by
+providing an easy means by which to examine simulations and analysis
+codes as they run, and to be able to have interactive pieces of a
+scientific workflow, where you know that you're going to need human
+interaction in between computational tasks.
+
+\block{Dashboard Widgets} {
+\begin{itemize}
+\tightlist
+\item
+  Workflow DAG visualizer/runner
+\item
+  Live updating plots/logs
+  \item Local/remote worker creation
+\item
+  Batch queue status
+\item
+  Resource monitors
+\item
+  SSH/REST authenticators
+
+\end{itemize}
+}
 
 \end{columns}
 
