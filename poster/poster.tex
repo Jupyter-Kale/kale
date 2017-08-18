@@ -6,7 +6,6 @@
 
 \usepackage{geometry}
 \geometry{
-	%papersize={90in, 44.5in},
 	papersize={48in, 36in},
 }
 
@@ -14,7 +13,6 @@
 \usepackage{lmodern}
 \usepackage{multicol}
 \usepackage{booktabs}
-%\usepackage[fontsize=24pt]{scrextend}
 \providecommand{\tightlist}{%
   \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
 
@@ -84,98 +82,6 @@ Abstract
  The Jupyter architecture (kernels, Notebooks, widgets, etc.) provides a solid foundation to address these challenges, and is already familiar to many scientists, but is missing certain key ingredients. 
 }
 
-% \block{Purpose} {
-%     \begin{tabular}{llll}
-%         \toprule
-%         Test & Exploration & Narrative & Interactivity \\
-%         \midrule
-%         Jupyter &
-%         \parbox{.33\linewidth}{
-%         \begin{itemize}
-%         \item Freedom to write anything
-%         \item Reusable code cells
-%         \item Build something, modify it easily, try again, repeat. 
-%         \item Easy to develop something, then easy to paste it into a python script or continue running it directly from the notebook. 
-%         \end{itemize}} &
-% 
-%         \parbox{.33\linewidth}{
-%         \begin{itemize}
-%         \item Markdown, LaTeX, code all together
-%             \item Tell the full story all in one place
-%             \item Cohesive way to communicate complex ideas
-%         \end{itemize}} &
-% 
-%         \parbox{.33\linewidth}{
-%         \begin{itemize}
-%         \item Widgets - sliders, text input, controllers, etc.
-%         \item Allow you to interact directly with data and models
-%         \item Visualization and experimentation
-%         \end{itemize}} \\
-% 
-%         Kale &
-%         \parbox{.33\linewidth}{
-%         \begin{itemize}
-%         \item Easily create workflows from the ground up. Start with one notebook and expand to two. Add some C++. etc.
-%         \end{itemize}} &
-% 
-%         \parbox{.33\linewidth}{
-%         \begin{itemize}
-%         \item Rich descriptions for workflows and notebooks
-%         \item Communicate full HPC workflows 
-%         \item Provenance, reproducibility
-%         \end{itemize}} &
-% 
-%         \parbox{.33\linewidth}{
-%         \begin{itemize}
-%         \item Monitor HPC jobs as they're running
-%         \item Interactive notebooks as workflow steps
-%         \item Modular, widget interface
-%         \end{itemize}} \\
-% 
-%         \bottomrule
-%     \end{tabular}
-% 
-% }
-% 
-% 
-% \begin{columns}
-% \column{.333}
-% \block{Col 1}{
-%     \begin{itemize}
-%     \tightlist
-%     \item
-%       Modular Widget Interface
-%     \item Interactive Notebooks as workflow steps
-%     \item
-%       Use existing Workflow Software
-%     \item
-%       Interact with tasks via kernels
-%     \item
-%       Build \& submit workflows in a notebook via Python API
-%     \item
-%       Launch remote kernels
-%     \end{itemize}
-% }
-% \column{.333}
-% \begin{block} {
-% 
-% \item
-%   Export to YAML
-% \item
-%   Rich workflow/task descriptions
-% \item
-%   Monitor HPC jobs via plots/logs
-% \item
-%   Submit batch jobs
-% \item
-%   Run parts of a workflow
-% \end{itemize}
-% }
-% \end{columns}
-% \column{.333}
-% 
-% 
-
 \block{Key Features} {
 \begin{multicols}{2}
 \begin{itemize}
@@ -198,8 +104,7 @@ Abstract
  }
  
 \column{0.3}
-% 
-% 
+
 \block{Define Workflows} {
     \begin{minipage}{.6\linewidth}
         \includegraphics[width=\linewidth]{../img/screenshot/define} \\
@@ -275,112 +180,6 @@ providing an easy means by which to examine simulations and analysis
 codes as they run, and to be able to have interactive pieces of a
 scientific workflow, where you know that you're going to need human
 interaction in between computational tasks.
-
-% \subsection{What do I really mean?}\label{what-do-i-really-mean}
-% 
-% \subsection{Jupyter}\label{jupyter}
-% 
-% \subsubsection{Exploration}\label{exploration-1}
-% 
-% \begin{itemize}
-% \tightlist
-% \item
-%   Freedom to write anything
-% \item
-%   Reusable code cells
-% 
-%   \begin{itemize}
-%   \tightlist
-%   \item
-%     Build something, modify it easily, try again, repeat.
-%   \end{itemize}
-% \item
-%   Easy to develop something, then easy to paste it into a python script
-%   or continue running it directly from the notebook.
-% \end{itemize}
-% 
-% \subsubsection{Narrative}\label{narrative-1}
-% 
-% \begin{itemize}
-% \tightlist
-% \item
-%   Markdown, LaTeX, code all together
-% 
-%   \begin{itemize}
-%   \tightlist
-%   \item
-%     Tell the full story all in one place
-%   \item
-%     Cohesive way to communicate complex ideas
-%   \end{itemize}
-% \end{itemize}
-% 
-% \subsubsection{Interactivity}\label{interactivity-1}
-% 
-% \begin{itemize}
-% \tightlist
-% \item
-%   Widgets - sliders, text input, controllers, etc.
-% \item
-%   Allow you to interact directly with data \& models
-% \item
-%   Visualization \& experimentation
-% \end{itemize}
-% 
-% \subsection{Kale}\label{kale}
-% 
-% \subsubsection{Exploration}\label{exploration-2}
-% 
-% \begin{itemize}
-% \tightlist
-% \item
-%   Easily create workflows from the ground up. Start with one notebook
-%   and expand to two. Add some C++. etc.
-% \end{itemize}
-% 
-% \subsubsection{Narrative}\label{narrative-2}
-% 
-% \begin{itemize}
-% \tightlist
-% \item
-%   Rich descriptions for workflows and notebooks
-% \item
-%   Communicate full HPC workflows
-% \item
-%   Provenance, reproducibility
-% \end{itemize}
-% 
-% \subsubsection{Interactivity}\label{interactivity-2}
-% 
-% \begin{itemize}
-% \tightlist
-% \item
-%   Monitor HPC jobs as they're running
-% \item
-%   Interactive notebooks as workflow steps
-% \item
-%   Modular, widget interface
-% \end{itemize}
-% 
-}
-% 
-% \block{SSH Authentication} {
-%     \includegraphics[width=\linewidth]{../img/screenshot/ssh_auth}
-% }
-% \block{Watch Live Output} {
-%     \includegraphics[width=\linewidth]{../img/screenshot/tail}
-% }
-% \block{Remote Workers} {
-%     \includegraphics[width=\linewidth]{../img/screenshot/worker_pool}
-% }
-% 
-% \block{NEWT Auth} {
-% \includegraphics[width=\linewidth]{../img/screenshot/newt_auth}
-% }
-% 
-% \block{Worker Pool} {
-% \includegraphics[width=\linewidth]{../img/screenshot/worker_pool}
-% }
 
 \block{Dashboard Widgets} {
 \begin{itemize}
