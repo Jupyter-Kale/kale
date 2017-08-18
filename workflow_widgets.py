@@ -80,7 +80,7 @@ class WorkflowWidget(ipw.HBox):
             button_style='success'
         )
 
-        self._worker_pool_selector = ipw.Select()
+        self._worker_pool_selector = ipw.Dropdown()
         self._run_button = ipw.Button(
             description='Run Workflow',
             button_style='success'

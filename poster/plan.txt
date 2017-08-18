@@ -1,0 +1,46 @@
+Questions to answer:
+- What's the existing issue?
+- How could it be improved?
+- What does it look like?
+- How does it work?
+
+# Things to include
+- Principles
+- Features
+- Implementation
+- Screenshot
+- Diagram
+
+# Features
+- Export to YAML
+- Modular Widget Interface
+- Use existing Workflow Software
+- Interact with tasks via kernels
+- Build & submit workflows in a notebook via Python API
+- Launch remote kernels
+- Rich workflow/task descriptions
+- Monitor HPC jobs via plots/logs
+- Submit batch jobs
+- Run parts of a workflow
+
+# Dashboard (Widget List)
+- Workflow status
+- Batch queue status
+- Resource monitors
+- SSH/REST authenticators
+- Live plots
+- Live log tailer
+
+HPC:
+- Optimized for machine efficiency
+- Automated (non-interactive)
+- Post-mortem analysis?
+
+Scientists:
+- Manual inspection
+- Manual intervention
+- Experimentation
+
+
+
+

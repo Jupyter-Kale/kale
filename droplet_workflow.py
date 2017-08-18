@@ -6,7 +6,7 @@ from workflow_objects import *
 droplet_wf = Workflow('Droplet Workflow')
 
 droplet_wf.readme = r"""
-<h3>MD Simulations of Nanodroplet Wetting Dynamics</h3>
+<h3>Nanoscale Wetting Dynamics</h3>
 
 <br>
 
@@ -15,44 +15,44 @@ on the order of 20 - 100 $\overset{\lower.5em\circ}{\mathrm{A}}$ and atomically 
 In particular, we observe the formation of a monolayer, calculate its rate
 of growth, and devise a predictive geometric model for the phenomenon.
 
-<video width="300px" src="movie/mesfin.mp4" type="video/mp4" controls>
+<video width="200px" src="movie/mesfin.mp4" type="video/mp4" controls>
     Video not supported.
 </video>
 
-<br><br>
-
-We find that $r_m = \alpha t^\beta$ is an accurate model for monolayer radius
-for values of $\alpha$ and $\beta$ which can be determined from the base radius.
-
-<br><br>
-
-
-
-<br><br>
-
-
-This workflow does the following:
-<ol>
-    <li>Create substrate and droplets (C++, ROOT, Python)
-    <li>Combine substrate and droplets (Perl)
-    <li>Run simulation (LAMMPS on cluster)
-    <li>Parse LAMMPS output(awk, C++)
-    <li>Calculate molecular properties (C++, ROOT)
-        <ul>
-            <li>Velocity
-            <li>Orientation
-            <li>etc.
-        </ul>
-    <li>Calculate droplet properties (C++, ROOT_)
-        <ul>
-            <li>Bulk radius
-            <li>Monolayer Radius
-            <li>etc.
-        </ul>
-    <li>Combine results for each droplet size (Bash)
-    <li>Combine results from all simulations (Bash)
-    <li>Define model and calibrate to simulation data (Jupyter Notebook, Python)
-</ol>
+# <br><br>
+# 
+# We find that $r_m = \alpha t^\beta$ is an accurate model for monolayer radius
+# for values of $\alpha$ and $\beta$ which can be determined from the base radius.
+# 
+# <br><br>
+# 
+# 
+# 
+# <br><br>
+# 
+# 
+# This workflow does the following:
+# <ol>
+#     <li>Create substrate and droplets (C++, ROOT, Python)
+#     <li>Combine substrate and droplets (Perl)
+#     <li>Run simulation (LAMMPS on cluster)
+#     <li>Parse LAMMPS output(awk, C++)
+#     <li>Calculate molecular properties (C++, ROOT)
+#         <ul>
+#             <li>Velocity
+#             <li>Orientation
+#             <li>etc.
+#         </ul>
+#     <li>Calculate droplet properties (C++, ROOT_)
+#         <ul>
+#             <li>Bulk radius
+#             <li>Monolayer Radius
+#             <li>etc.
+#         </ul>
+#     <li>Combine results for each droplet size (Bash)
+#     <li>Combine results from all simulations (Bash)
+#     <li>Define model and calibrate to simulation data (Jupyter Notebook, Python)
+# </ol>
 """
 
 

@@ -1,5 +1,10 @@
-# jupyter_hpc
-LDRD Jupyter Repo Summer 2017
+# Kale: High Performance Computing with Jupyter
+LDRD Jupyter Repo Summer 2017  
+Matthew Henderson, 
+Oliver Evans, 
+Shreyas Cholia, 
+Fernando Perez  
+@ Lawrence Berkeley National Laboratory
 
 (Readme in progress)
 
@@ -19,7 +24,7 @@ But being constrained by computational resources, scientific computing tends to 
 By combining the raw power of high performance computing resources with the flexibility of Jupyter, we can go from idea to implementation in minutes, even on the biggest problems.
 
 ## Narrative
-Having Markdown and $\LaTeX$ right next to your code allows you to tell the full story of what's going on in a notebook in a clear and cohesive manner.
+Having Markdown and LaTeX right next to your code allows you to tell the full story of what's going on in a notebook in a clear and cohesive manner.
 With formulas, images, tables, and even movies embedded right in the document, communicating complex concepts is so much more feasible than through code comments alone.
 While sharing code is essential for open science and reproducibility, it usually doesn't go very far without context.
 
@@ -30,7 +35,6 @@ Being able to touch your data and models provides a deeper ability to understand
 The Jupyter widget ecosystem provides a wide range of interactive elements that allow for the visualization and exploration of high dimensional spaces.
 In HPC systems, interactivity has generally been at the bottom of the food chain.
 We hope to bridge that gap by providing an easy means by which to examine simulations and analysis codes as they run, and to be able to have interactive pieces of a scientific workflow, where you know that you're going to need human interaction in between computational tasks.
-
 
 ## What do I really mean?
 
@@ -54,10 +58,12 @@ We hope to bridge that gap by providing an easy means by which to examine simula
 ## Kale
 ### Exploration
 - Easily create workflows from the ground up. Start with one notebook and expand to two. Add some C++. etc.
+
 ### Narrative
 - Rich descriptions for workflows and notebooks
 - Communicate full HPC workflows 
 - Provenance, reproducibility
+
 ### Interactivity
 - Monitor HPC jobs as they're running
 - Interactive notebooks as workflow steps
