@@ -1,0 +1,8 @@
+# Notes:
+- Cluster:
+    - Terminal should not start if not authenticated (status area)
+    - Implement status area for SSHAuthWidget & SSHTerminal
+- Worker Pool:
+    - Location list should dynamically update, but class attributes can't be traitlets
+
+
