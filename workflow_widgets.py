@@ -350,7 +350,7 @@ class WorkflowWidget(ipw.HBox):
         selected_tasks = self.get_selected_tasks()
         all_parents = self._get_parents(selected_tasks)
         parents_indices = [parent.index[self.workflow] for parent in all_parents]
-        if len(children_indices) > 0:
+        if len(parents_indices) > 0:
             self.bqgraph.selected = parents_indices
         else:
             self.bqgraph.selected = None

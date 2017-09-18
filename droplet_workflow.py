@@ -88,6 +88,7 @@ gen_mica_task = CommandLineTask(
     output_files = [
         "{out_file}"
     ],
+    tags=['gen_mica'],
     params=dict(
         base_dir=base_dir,
         nx=nx,
@@ -117,6 +118,7 @@ for radius in droplet_radii:
         output_files = [
             "{out_file}"
         ],
+        tags=['{radius}A', 'gen_droplet'],
         params=dict(
             base_dir=base_dir,
             radius=radius,
@@ -126,9 +128,9 @@ for radius in droplet_radii:
                 radius=radius
             )
         )
-    )      
+    )
     droplet_wf.add_task(gen_droplet_task)
-    
+
     # Combine with substrate
     combine_readme = r"""
     <h3>Combine {radius}A droplet with substrate</h3>
@@ -147,6 +149,7 @@ for radius in droplet_radii:
         output_files = [
             "{base_dir}/gen_droplet/lammps_data/droplet_on_mica-{radius}A.data"
         ],
+        tags=['{radius}A', 'combine'],
         params=dict(
             base_dir=base_dir,
             radius=radius,
@@ -182,6 +185,7 @@ for radius in droplet_radii:
             "{base_dir}/data/{radius}A/atom"+str(part)
             for part in range(1,parts_per_sim+1)
         ],
+        tags=['{radius}A', 'simulate'],
         num_cores=parts_per_sim,
         params=dict(
             base_dir=base_dir,
@@ -211,6 +215,7 @@ for radius in droplet_radii:
             command='{base_dir}/exec/parse.sh {infile} {outfile}',
             input_files = ["{infile}"],
             output_files = ["{outfile}"],
+            tags=['{radius}A', 'parse'],
             params=dict(
                 base_dir=base_dir,
                 radius=radius,
@@ -259,6 +264,7 @@ for radius in droplet_radii:
             input_files = ["{infile}"],
             output_files = ["{outfile}"],
             readme=analyze_readme,
+            tags=['{radius}A', 'analyze'],
             params=dict(
                 base_dir=base_dir,
                 radius=radius,
@@ -289,6 +295,7 @@ for radius in droplet_radii:
             for part in range(1,parts_per_sim+1)
         ],
         output_files=["{base_dir}/results/{radius}A/combined.txt"],
+        tags=['{radius}A', 'combine_parts'],
         params=dict(
             base_dir=base_dir,
             radius=radius,
@@ -319,6 +326,7 @@ combine_sims_task = CommandLineTask(
         "{base_dir}/results/"+str(radius)+"A/combined.txt"
         for radius in droplet_radii
     ],
+    tags=['combine_sims'],
     output_files=["{base_dir}/results/allResults.txt"],
     params=dict(base_dir=base_dir)
 )
@@ -345,6 +353,7 @@ analysis_notebook_task = NotebookTask(
     name='analysis_notebook',
     readme=analysis_notebook_readme,
     interactive=True,
+    tags=['analysis_notebook'],
 )
 droplet_wf.add_task(
     analysis_notebook_task,

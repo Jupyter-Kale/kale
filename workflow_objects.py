@@ -254,13 +254,10 @@ class Workflow(traitlets.HasTraits):
 
     def _task_remove_tags(self, task, tags):
         "Remove list of tags from task"
-        task.tags = list(set().difference(task.tags, tags))
+        task.tags = list(set(task.tags).difference(tags))
         for tag in tags:
-            if task in self.tag_dict[tag]:
-                self.tag_dict[tag].pop(index)
-            # Remove key if empty
-            #if self.tag_dict[tag] == []:
-            #    del self.tag_dict[tag]
+            index = self.tag_dict[tag].index(task)
+            self.tag_dict[tag].pop(index)
 
     def _del_tag(self, tag):
         "Delete tag and remove all "
@@ -276,7 +273,8 @@ class Workflow(traitlets.HasTraits):
     def _tag_set_tasks(self, tag, tasks):
         "Add tag to given tasks, and remove it from others."
         # Remove tag from all other tasks
-        for task in self.tag_dict[tag]:
+        presently_tagged = self.tag_dict[tag][:]
+        for task in presently_tagged:
             if task not in tasks:
                 self._task_remove_tags(task, [tag])
         # Add tag to these tasks
@@ -433,7 +431,8 @@ class Task(traitlets.HasTraits):
         ] + substitute_strings
         self._substitute_lists = [
             'input_files',
-            'output_files'
+            'output_files',
+            'tags'
         ] + substitute_lists
 
         self._substitute_fields()
