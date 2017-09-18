@@ -99,7 +99,7 @@ class WorkerPool(traitlets.HasTraits):
                 )
                 time.sleep(1)
 
-    
+
     @_verify_executor('fireworks')
     def init_fireworks(self):
         "Create Fireworks LaunchPad for this workflow."
@@ -115,7 +115,7 @@ class WorkerPool(traitlets.HasTraits):
 
         fw_tasks = []
         fw_links = {}
-        
+
         for task in workflow.dag.nodes():
             firework = task.get_firework(launch_dir=os.getcwd())
             fw_tasks.append(firework)
@@ -140,7 +140,7 @@ class Worker(traitlets.HasTraits):
     """Compuational resource on which to execute jobs.
     Should be created by WorkerPool.
     """
-    
+
     pool = traitlets.Instance(WorkerPool)
 
     def __init__(self, pool, wf_executor='fireworks', *args, **kwargs):
@@ -161,19 +161,20 @@ class Worker(traitlets.HasTraits):
 
 class Workflow(traitlets.HasTraits):
 
-    dag = traitlets.Instance(networkx.graph.Graph)
+    dag = traitlets.Instance(networkx.DiGraph)
     name = traitlets.Unicode()
     index_dict = traitlets.Dict()
     fig_layout = traitlets.Instance(ipw.Layout)
     task_names = traitlets.List(trait=traitlets.Unicode())
     wf_executor = traitlets.Unicode(allow_none=True)
     readme = traitlets.Unicode()
+    tag_dict = traitlets.Dict()
 
     def __init__(self, name):
 
         super().__init__()
 
-        self.dag = networkx.graph.Graph()
+        self.dag = networkx.DiGraph()
         self.name = name
         self.index_dict = {}
         #self.fig_layout = ipw.Layout(width='600px', height='800px')
@@ -182,7 +183,7 @@ class Workflow(traitlets.HasTraits):
 
         # Workflow executor - to be defined on initialization of wf executor.
         self.wf_executor = None
-    
+
     def add_task(self, task, dependencies=None):
         """
         Add instantiated Task object to the Workflow.
@@ -192,18 +193,19 @@ class Workflow(traitlets.HasTraits):
         """
 
         super().__init__()
-        
+
         # Ensure that tasks are not repeated.
         if task in self.dag.nodes():
             raise ValueError("Task already present in Workflow. Please pass a deepcopy if you wish to repeat the Task.")
         elif task.name in self._task_names:
             raise ValueError("Task name '{}' already present in Workflow. Please use a unique name.".format(task.name))
-            
+
         # Determine index for this Task in this Workflow
         index = self.dag.number_of_nodes()
         # Inform workflow and task of this assignment
         self.dag.add_node(task, index=index)
         task.index[self] = index
+        self.index_dict[index] = task
 
         if dependencies is not None:
             # Store dependency relationship in DAG
@@ -226,7 +228,10 @@ class Workflow(traitlets.HasTraits):
 
         # Tasks cannot have children at definition time.
         task.children[self] = []
-                
+
+        # Pass tag information to workflow
+        self._task_add_tags(task, task.tags)
+
     def get_task_by_name(self, name):
         "Return the Task object with the given name in this Workflow."
         for task in self.dag.nodes():
@@ -236,12 +241,54 @@ class Workflow(traitlets.HasTraits):
             except AttributeError:
                 print("{} has no name.".format(task))
 
+    ### Something will probably go wrong with tag_dict if a task belongs to multiple workflows ###
+
+    def _task_add_tags(self, task, tags):
+        "Add list of tags to task."
+        task.tags = list(set().union(task.tags, tags))
+        for tag in tags:
+            if tag not in self.tag_dict:
+                self.tag_dict[tag] = [task]
+            elif task not in self.tag_dict[tag]:
+                self.tag_dict[tag].append(task)
+
+    def _task_remove_tags(self, task, tags):
+        "Remove list of tags from task"
+        task.tags = list(set().difference(task.tags, tags))
+        for tag in tags:
+            if task in self.tag_dict[tag]:
+                self.tag_dict[tag].pop(index)
+            # Remove key if empty
+            #if self.tag_dict[tag] == []:
+            #    del self.tag_dict[tag]
+
+    def _del_tag(self, tag):
+        "Delete tag and remove all "
+        tasks = self.tag_dict[tag]
+        for task in tasks:
+            self._task_remove_tags(task, [tag])
+        del self.tag_dict[tag]
+
+    def _new_tag(self, tag):
+        if tag not in self.tag_dict.keys():
+            self.tag_dict[tag] = []
+
+    def _tag_set_tasks(self, tag, tasks):
+        "Add tag to given tasks, and remove it from others."
+        # Remove tag from all other tasks
+        for task in self.tag_dict[tag]:
+            if task not in tasks:
+                self._task_remove_tags(task, [tag])
+        # Add tag to these tasks
+        for task in tasks:
+            self._task_add_tags(task, [tag])
+
     def _gen_bqgraph(self):
         "Generate bqplot graph."
-        
+
         pos = networkx.nx_pydot.graphviz_layout(self.dag, prog='dot')
         N = self.dag.number_of_nodes()
-        
+
         x, y = [[pos[node][i] for node in self.dag.nodes()] for i in range(2)]
 
         node_data = [
@@ -256,14 +303,14 @@ class Workflow(traitlets.HasTraits):
             {
                 'source': source.index[self],
                 'target': target.index[self]
-            } 
+            }
             for source, target in self.dag.edges()
         ]
 
         xs = bq.LinearScale()
         ys = bq.LinearScale()
         scales = {'x': xs, 'y': ys}
-        
+
         graph = bq.Graph(
             node_data=node_data,
             link_data=link_data,
@@ -277,30 +324,30 @@ class Workflow(traitlets.HasTraits):
             #    'hover': 'select'
             #},
         )
-        
+
         # graph.tooltip = bq.Tooltip(
         #     fields=self.dag.nodes()[0].user_fields
         # )
-        
+
         return graph
-    
+
     def get_bqgraph(self):
         "Retrieve, but do not regenerate bqplot graph."
         return self._bqgraph
-    
+
     def draw_dag(self, layout=None):
         "Return bqplot figure representing DAG, regenerating graph."
-        
+
         self._bqgraph = self._gen_bqgraph()
-        
+
         graph = self.get_bqgraph()
         if layout == None:
             layout = self.fig_layout
-            
+
         fig = bq.Figure(marks=[graph], layout=layout)
-                        
+
         toolbar = bq.Toolbar(figure=fig)
-        
+
         return ipw.VBox([fig, toolbar])
 
     def gen_subdag(self):
@@ -325,51 +372,55 @@ class Task(traitlets.HasTraits):
     dependencies = traitlets.Dict()
     children = traitlets.Dict()
     params = traitlets.Dict()
+    tags = traitlets.List()
 
     def __init__(self, name, input_files=[], output_files=[], log_path='',
-                params={}, num_cores=1, task_type='', readme='',
+                 params={}, num_cores=1, task_type='', readme='', tags=[],
                 substitute_strings=[], substitute_lists=[],
                 user_fields=[]):
-        
+
         super().__init__()
 
         # Name of task (must be unique)
         self.name = name
-        
+
         # Type of task (Notebook, CommandLine, etc.)
         self.task_type = task_type
 
         # HTML string (hopefully soon markdown) explaining this task
         self.readme = readme
-        
-        # Files which this Task takes as input 
+
+        # Tags - used for selecting & running groups of tasks.
+        self.tags = tags
+
+        # Files which this Task takes as input
         # and must be present before run.
         self.input_files = input_files
-        
+
         # Files which are generated or modified by this Task.
         self.output_files = output_files
 
         # Path to log file for this Task
         self.log_path = log_path
-        
+
         # Number of CPU cores to run the task on
         self.num_cores = num_cores
-        
+
         # Map workflow to the node index which
         # represents this task in that workflow.
         # Tasks may be in multiple workflows,
         self.index = {}
 
-        # List of other Tasks which must complete 
+        # List of other Tasks which must complete
         # before this Task can be run.
         self.dependencies = {}
-        
+
         # List of Tasks which depend on this Task.
         self.children = {}
-        
+
         # Parameters to replace in other arguments
         self.params = params
-        
+
         # List of names of fields to substitute params.
         # If a child class calls Task.__init__ with
         # substitute_strings or substitute_lists as
@@ -384,25 +435,26 @@ class Task(traitlets.HasTraits):
             'input_files',
             'output_files'
         ] + substitute_lists
-        
+
         self._substitute_fields()
-        
+
         # Fields which are of interest to the user
         self.user_fields = [
-            'name', 
-            'task_type', 
-            'input_files', 
+            'name',
+            'task_type',
+            'tags',
+            'input_files',
             'output_files',
             'num_cores'
         ] + user_fields
 
         # Initialize None as placeholder for Firework executable.
         self._firework = None
-    
+
     def get_user_dict(self):
         "Generate dictionary of user field names and values"
         return {
-            field: getattr(self, field) 
+            field: getattr(self, field)
             for field in self.user_fields
         }
 
@@ -440,7 +492,7 @@ class Task(traitlets.HasTraits):
             after = before.format(**self.params)
             # Write new value
             setattr(self, field, after)
-            
+
         for list_name in self._substitute_lists:
             field_list = getattr(self, list_name)
             # Read current values
@@ -451,18 +503,18 @@ class Task(traitlets.HasTraits):
                 field_list[i] = after
             # Write working copy to actual list
             setattr(self, list_name, field_list)
-                
+
     def _run(self):
         """
         Run this Task. Should be executed by a Workflow.
         This function should be overloaded by child classes.
         """
         print("Task run.")
-        
+
 
 class NotebookTask(Task):
     """
-    
+
     Jupyter Notebook which should appear as a node in the Workflow DAG.
     If interactive == True, a kernel will be started and the
     notebook will be opened for user to interact with.
@@ -473,17 +525,17 @@ class NotebookTask(Task):
     def __init__(self, name, interactive=True, **kwargs):
         self.task_type = 'NotebookTask'
         self.interactive = interactive
-        
+
         user_fields = ['interactive']
-        
+
         super().__init__(
             name=name,
             user_fields=user_fields,
             **kwargs)
-    
+
     def _run(self):
         print("Notebook run.")
-    
+
 
     def _unblock(self):
         """
@@ -492,14 +544,14 @@ class NotebookTask(Task):
         """
         pass
 
-    
+
 class CommandLineTask(Task):
     "Command Line Task to be executed as a Workflow step."
     def __init__(self, name, command, **kwargs):
-        
+
         self.command = command
         user_fields = ['command']
-        
+
         super().__init__(
             name=name,
             task_type='CommandLineTask',
@@ -507,7 +559,7 @@ class CommandLineTask(Task):
             user_fields=user_fields,
             **kwargs
         )
-    
+
     def _run(self):
         print("Command Line run.")
 
@@ -515,7 +567,7 @@ class CommandLineTask(Task):
         "Create a Firework for this task."
         return fw.ScriptTask.from_str(self.command)
 
-        
+
 class PythonFunctionTask(Task):
     "Python function call to be executed as a Workflow step."
     def __init__(self, name, func, args=[], kwargs={}, **other_kwargs):
@@ -523,16 +575,16 @@ class PythonFunctionTask(Task):
         self.func = func
         self.args = args
         self.kwargs = kwargs
-        
+
         user_fields = ['func.__name__', 'args', 'kwargs']
-        
+
         super().__init__(
-            name=name, 
+            name=name,
             task_type='PythonFunctionTask',
             user_fields=user_fields,
             **other_kwargs
         )
-    
+
     def _run(self):
         print("Python function run.")
         return self.fun(*args, **kwargs)
@@ -543,22 +595,22 @@ class PythonFunctionTask(Task):
             args=self.args,
             kwargs=self.kwargs
         )
-    
+
 class BatchTask(Task):
     "Task which will be submitted to a batch queue to execute."
     def __init__(self, name, batch_script, **kwargs):
         self.batch_script = batch_script
-        
+
         user_fields = ['batch_script']
         substitute_strings = ['batch_script']
-        
+
         super().__init__(
-            name=name, 
+            name=name,
             task_type='BatchTask',
             user_fields=user_fields,
             substitute_strings=substitute_strings,
             **kwargs
         )
-        
+
     def _run(self):
         print("Batch run.")
