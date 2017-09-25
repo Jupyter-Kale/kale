@@ -8,6 +8,23 @@ Fernando Perez
 
 (Readme in progress)
 
+# Goals
+- Execute scientific workflows from Jupyter. The workflow may encompass command line tasks, batch jobs, and notebooks (interactive and non-interactive)
+- Monitor and interact with running jobs from Jupyter.
+
+# Screenshots
+Example workflow
+
+![droplet_wf](img/screenshot/droplet_wf.png)
+
+Connect to cluster via SSH
+
+![ssh_auth](img/screenshot/ssh_auth.png)
+
+Example workflow definition
+
+![define](img/screenshot/define.png)
+
 # Principles
 
 Jupyter brings several key features to the world of computational science:
@@ -68,26 +85,3 @@ We hope to bridge that gap by providing an easy means by which to examine simula
 - Monitor HPC jobs as they're running
 - Interactive notebooks as workflow steps
 - Modular, widget interface
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Goals:
-- Execute scientific workflows from Jupyter. The workflow may encompass command line tasks, batch jobs, and notebooks (interactive and non-interactive)
-- Monitor and interact with running jobs from Jupyter.
