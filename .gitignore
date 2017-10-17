@@ -2,3 +2,6 @@
 __pycache__
 tmp/*
 .*.swp
+FW.json
+launcher_*/*
+.watch_job_*

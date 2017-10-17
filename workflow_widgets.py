@@ -115,9 +115,11 @@ class WorkflowWidget(ipw.HBox):
         self._task_area = ipw.VBox([
             ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
+            self.ipw.
             aux.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
+
         ])
 
         self._tb_select_all = ipw.Button(
@@ -258,6 +260,7 @@ class WorkflowWidget(ipw.HBox):
         # Default selections
         self._tab.selected_index = 0
         self.bqgraph.selected = [0]
+        self.nodes = list(self.workflow.dag.nodes())
 
         self._thread_pool = ThreadPoolExecutor()
         self.future = None
@@ -487,7 +490,7 @@ class WorkflowWidget(ipw.HBox):
         else:
             node_num = change['new'][0]
 
-            node = self.workflow.dag.nodes()[node_num]
+            node = self.nodes[node_num]
 
             with self.output_area:
                 print("Selected node {}".format(node_num))
@@ -516,13 +519,14 @@ class WorkflowWidget(ipw.HBox):
         with self._widget_log:
             try:
                 if not self.future.running():
-                    self._thread_pool.submit(self.run_workflow)
+                    self.future = self._thread_pool.submit(self.run_workflow)
                     print("Workflow submitted.")
                 else:
                     print("Workflow already running.")
-            except AttributeError:
-                self._thread_pool.submit(self.run_workflow)
-                print("Workflow submitted.")
+            except AttributeError as e:
+                # Attribute error if self.future is None
+                # which means workflow has not been submitted.
+                self.future = self._thread_pool.submit(self.run_workflow)
 
     def run_workflow(self, *args):
         "Run workflow with selected WorkerPool."
@@ -610,7 +614,7 @@ class WorkerPoolWidget(ipw.VBox):
         )
 
         # Add default pool
-        self.add_pool('default', 1)
+        self.add_pool('default', 4)
 
     def get_locations(self):
         "Get locations where workers can be created."
@@ -626,8 +630,8 @@ class WorkerPoolWidget(ipw.VBox):
             )
         else:
 
-            with self.out_area:
-                pool = kale.WorkerPool(name, num_workers, location)
+            #with self.out_area:
+            pool = kale.WorkerPool(name, num_workers, location)
 
             remove_button = ipw.Button(
                 description="Remove",
