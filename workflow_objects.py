@@ -10,9 +10,11 @@ from IPython.display import display, HTML
 import traitlets
 import os
 import time
+import batch_jobs
 
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
+import pymongo
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -77,9 +79,12 @@ class WorkerPool(traitlets.HasTraits):
 
     def _log_decorator(self, fun):
         "Execute function and log output."
-        def wrapper(*args, **kwargs):
-            with self.log_area:
-                return fun(*args, **kwargs)
+        #def wrapper(*args, **kwargs):
+        #    with self.log_area:
+        #        return fun(*args, **kwargs)
+        # Turn off pool-level logging.
+        # It's easier if it goes to the workflow widget.
+        wrapper = fun
         return wrapper
 
     @_verify_executor('fireworks')
@@ -98,7 +103,6 @@ class WorkerPool(traitlets.HasTraits):
                     )
                 )
                 time.sleep(1)
-
 
     @_verify_executor('fireworks')
     def init_fireworks(self):
@@ -133,7 +137,9 @@ class WorkerPool(traitlets.HasTraits):
         "Queue jobs from workflow and execute them all via Fireworks."
         print("FW Run")
         self._fw_queue(workflow)
+        print("FQ Queued")
         self._fw_rapidfire(workflow)
+        print("FW Completed")
 
 
 class Worker(traitlets.HasTraits):
@@ -524,7 +530,6 @@ class NotebookTask(Task):
     def __init__(self, name, interactive=True, **kwargs):
         self.task_type = 'NotebookTask'
         self.interactive = interactive
-
         user_fields = ['interactive']
 
         super().__init__(
@@ -535,20 +540,27 @@ class NotebookTask(Task):
     def _run(self):
         print("Notebook run.")
 
+    def _gen_firetask(self):
+        self._fifo_path = batch_jobs.gen_fifo()
+        self._rand_hash = batch_jobs.gen_random_hash()
 
-    def _unblock(self):
-        """
-        Return control to Workflow after interactive notebook
-        execution is complete.
-        """
-        pass
-
+        return fw.PyTask(
+            func='batch_jobs.wait_for_fifo',
+            kwargs=dict(
+                path=self._fifo_path,
+                key=self._rand_hash
+            )
+        )
 
 class CommandLineTask(Task):
     "Command Line Task to be executed as a Workflow step."
-    def __init__(self, name, command, **kwargs):
+    def __init__(self, name, command, nodes_cores=1, node_property=None, poll_interval=60, **kwargs):
 
         self.command = command
+        self.node_property = node_property
+        self.nodes_cores = nodes_cores
+        self.poll_interval = poll_interval
+
         user_fields = ['command']
 
         super().__init__(
@@ -564,7 +576,17 @@ class CommandLineTask(Task):
 
     def _gen_firetask(self):
         "Create a Firework for this task."
-        return fw.ScriptTask.from_str(self.command)
+        #return fw.ScriptTask.from_str(self.command)
+        return fw.PyTask(
+            func='batch_jobs.run_cmd_job',
+            kwargs=dict(
+                command=self.command,
+                name=self.name,
+                nodes_cores=self.nodes_cores,
+                node_property=self.node_property,
+                poll_interval=self.poll_interval
+            )
+        )
 
 
 class PythonFunctionTask(Task):
@@ -597,8 +619,10 @@ class PythonFunctionTask(Task):
 
 class BatchTask(Task):
     "Task which will be submitted to a batch queue to execute."
-    def __init__(self, name, batch_script, **kwargs):
+    def __init__(self, name, batch_script, node_property=None, poll_interval=60, **kwargs):
         self.batch_script = batch_script
+        self.node_property = node_property
+        self.poll_interval = poll_interval
 
         user_fields = ['batch_script']
         substitute_strings = ['batch_script']
@@ -609,6 +633,16 @@ class BatchTask(Task):
             user_fields=user_fields,
             substitute_strings=substitute_strings,
             **kwargs
+        )
+
+    def _gen_firetask(self):
+        return fw.PyTask(
+            func='batch_jobs.run_batch_job',
+            args=self.batch_script,
+            kwargs=dict(
+                node_property=self.node_property,
+                poll_interval=self.poll_interval
+            )
         )
 
     def _run(self):

@@ -1,0 +1,11 @@
+#!/bin/bash
+#PBS -l nodes=n015:ppn=1
+#PBS -l nice=10
+#PBS -j oe
+#PBS -q default
+#PBS -N KaleTest
+#PBS -r n
+cd $PBS_O_WORKDIR
+echo "I'm feeling sleepy."
+sleep 10
+echo "That was a nice nap."
