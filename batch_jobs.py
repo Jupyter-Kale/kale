@@ -68,10 +68,10 @@ def submit_batch_script(script_path):
     """Submit job, decode job_id bytes & remove newline
     Holds are passed to qsub via -h.
     """
-    with open(script_path) as fh:
-        print(fh.read())
+    #with open(script_path) as fh:
+    #    print(fh.read())
     command = ['qsub', script_path]
-    print("QSUB COMMAND: {}".format(' '.join(command)))
+    #print("QSUB COMMAND: {}".format(' '.join(command)))
     return subprocess.check_output(command).decode().strip()
 
 def poll_success_file(filepath, job_id, randhash, poll_interval):
@@ -155,7 +155,7 @@ cd $PBS_O_WORKDIR
         nodes_string=get_nodes_string(nodes_cores, node_property)
     )
 
-    #print("Run cmd job.")
+    print("Run cmd job.")
     #print(batch_string)
 
     with open(tmp_batch_script, 'w') as fh:

@@ -115,7 +115,6 @@ class WorkflowWidget(ipw.HBox):
         self._task_area = ipw.VBox([
             ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
-            self.ipw.
             aux.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
