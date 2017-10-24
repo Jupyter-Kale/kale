@@ -52,16 +52,22 @@ def create_success_file():
     return path
 
 def wrap_batch_script(batch_script, success_file, randhash):
-    
-    success_command = "echo '{}' > {}".format(
-        randhash, success_file
-    )
-    
+    success_command = """
+    echo '{randhash}' > {success_file}
+    while [ -z $(grep -Fx '{randhash}' '{success_file}') ]
+    do
+        sleep 1
+    done
+    """.format(
+        randhash=randhash,
+        success_file=success_file
+        )
+
     new_batch_script = create_appended_text_file(
-        batch_script, 
+        batch_script,
         success_command
-    )
-    
+        )
+
     return new_batch_script
 
 def submit_batch_script(script_path):
