@@ -3,26 +3,18 @@
 
 # Auxillary widgets (NEWT, SLURM, etc.)
 
-import numpy as np
-import ipyvolume.pylab as p3
-import pandas as pd
-import io
+# stdlib
 import os
 import subprocess as sp
-import IPython
-import ipyvolume as ipv
-import itertools as it
-import ipywidgets as ipw
 import time
-from datetime import datetime
-import lammps_gen as lg
+from concurrent.futures import ThreadPoolExecutor
+
+# 3rd party
+import ipywidgets as ipw
 import IPython.core.display as disp
+import pandas as pd
 import requests
 import paramiko
-from concurrent.futures import ThreadPoolExecutor
-import json
-import traitlets
-from weakref import WeakSet
 
 ## NEWT ##
 
@@ -69,7 +61,8 @@ class NEWTAuthWidget(ipw.VBox):
             self._password_input,
             self._login_button
         ]
-        
+
+        # TODO - onsubmit is deprecated
         # Connect UI elements to logic functions
         self._user_input.on_submit(self._login)
         self._password_input.on_submit(self._login)
@@ -398,7 +391,8 @@ class SSHAuthWidget(ipw.VBox):
         "Update results box to display result of requested login or logout."
         
         self._results_box.clear_output()
-        
+
+        # TODO - _render_login_status() does not take arguments, but request is being passed?
         with self._results_box:
             if request_type == 'login':
                 self._render_login_status(request)

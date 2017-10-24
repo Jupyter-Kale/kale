@@ -1,8 +1,7 @@
+# stdlib
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
 import subprocess
-import ipywidgets as ipw
 import random
 import tempfile
 import sys
@@ -16,7 +15,7 @@ def wait_for_fifo(path, key):
             sys.exit(1)
 
 def gen_fifo():
-    fname = subprocess.watch_output('mktemp -u -p . -t .watch_nb.XXXXXXXXXX', shell=True).decode().strip()
+    fname = subprocess.getoutput('mktemp -u -p . -t .watch_nb.XXXXXXXXXX').strip()
     subprocess.call(['mkfifo',fname])
     return fname
 
@@ -49,6 +48,7 @@ def create_appended_text_file(path, addition):
 
 def create_success_file():
     fd, path = tempfile.mkstemp(prefix='.watch_job_', dir='.')
+    os.close(fd)
     return path
 
 def wrap_batch_script(batch_script, success_file, randhash):
@@ -87,23 +87,24 @@ def poll_success_file(filepath, job_id, randhash, poll_interval):
                 print("Job success.")
             elif message == '':
                 print("Job failed.")
-                sys.exit(1)
+                #sys.exit(1)
             else:
                 print("Wrong hash!")
                 print("Wanted '{}'".format(randhash))
                 print("Received '{}'".format(message))
-                sys.exit(1)
+                #sys.exit(1)
         except FileNotFoundError:
             # No success message means job failed
             print("Unexpected error.")
-            sys.exit(1)
+            #sys.exit(1)
     finally:
         # Always delete success file
         os.remove(filepath)
 
-def run_batch_job(batch_script, poll_interval=60):
+def run_batch_job(batch_script, node_property=None, poll_interval=60):
     print("Run batch job")
     success_file = create_success_file()
+    print(success_file)
     randhash = gen_random_hash()
     
     new_batch_script = wrap_batch_script(
@@ -121,22 +122,24 @@ def get_nodes_string(nodes_cores, node_property):
     nodes_cores is a dict with nodes as keys, num_cores as items.
     Alternatively, it can be an int with # of cores.
     """
-    if type(nodes_cores) is dict:
-        node_string = '+'.join([
-            '{node}:ppn={cores}'.format(node=node,cores=cores)
-            for node,cores in nodes_cores.items()
-        ])
-    elif type(nodes_cores) in (int, str):
-        node_string = '1:ppn={}'.format(nodes_cores)
-    else:
-        raise ValueError("Received unexpected type for nodes_cores in get_nodes_string.")
-    if node_property is not None:
-        node_string += ':{}'.format(node_property)
+#    if type(nodes_cores) is dict:
+#        node_string = '+'.join([
+#            '{node}:ppn={cores}'.format(node=node,cores=cores)
+#            for node,cores in nodes_cores.items()
+#        ])
+#    elif type(nodes_cores) in (int, str):
+#        node_string = '1:ppn={}'.format(nodes_cores)
+#    else:
+#        raise ValueError("Received unexpected type for nodes_cores in get_nodes_string.")
+#    if node_property is not None:
+#        node_string += ':{}'.format(node_property)
+
+    node_string = '{}'.format(nodes_cores)
 
     return node_string
 
 
-
+# TODO - review
 def run_cmd_job(command, name, nodes_cores, node_property=None, poll_interval=60, mpiexec="/opt/open-mpi/ib-gnu44/bin/mpiexec"):
     tmp_batch_script = get_tempfile()
     batch_string = """#!/bin/bash

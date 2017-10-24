@@ -15,15 +15,15 @@ Fernando Perez
 # Screenshots
 Example workflow
 
-![droplet_wf](img/screenshot/droplet_wf.png)
+![droplet_wf](extras/img/screenshot/droplet_wf.png)
 
 Connect to cluster via SSH
 
-![ssh_auth](img/screenshot/ssh_auth.png)
+![ssh_auth](extras/img/screenshot/ssh_auth.png)
 
 Example workflow definition
 
-![define](img/screenshot/define.png)
+![define](extras/img/screenshot/define.png)
 
 # Principles
 

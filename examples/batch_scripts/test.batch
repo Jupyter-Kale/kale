@@ -1,5 +1,5 @@
 #!/bin/bash
-#PBS -l nodes=n015:ppn=1
+#PBS -l nodes=1
 #PBS -l nice=10
 #PBS -j oe
 #PBS -q default
