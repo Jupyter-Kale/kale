@@ -4,8 +4,9 @@
 import ipywidgets as ipw
 import aux_widgets as aux
 import workflow_objects as kale
+import IPython
 import time
-import traitlets
+import traitlets as tr
 import bqplot as bq
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
@@ -18,7 +19,7 @@ class EditHTML(ipw.VBox):
 
         self.elements = [self.HTML, self.Text]
         self.descriptions = ['Edit Description', 'Render Description']
-        traitlets.link((self.HTML, 'value'), (self.Text, 'value'))
+        tr.link((self.HTML, 'value'), (self.Text, 'value'))
 
         # Set height and width of Textarea
         self.Text.layout.height = u'{}px'.format(text_height)
@@ -44,6 +45,8 @@ class EditHTML(ipw.VBox):
 class WorkflowWidget(ipw.HBox):
     "Widget to draw DAG via bqplot and provide node-level info/interaction."
 
+    displayed_task = tr.Any()
+
     @property
     def bqgraph(self):
         return self.workflow.get_bqgraph()
@@ -60,6 +63,7 @@ class WorkflowWidget(ipw.HBox):
         self._scales = {'x': self._xs, 'y': self._ys}
         mgin = 10
 
+        self.displayed_task = None
         # Link which binds readme text of selected task to displayed value
         self._task_readme_link = None
 
@@ -75,9 +79,25 @@ class WorkflowWidget(ipw.HBox):
 
         self._workflow_readme_html = EditHTML()
         self._task_readme_html = EditHTML()
-        self._notebook_button = ipw.Button(
+        self._launch_notebook_button = ipw.Button(
             description='Open Notebook',
-            button_style='success'
+            button_style='success',
+            disabled=True,
+            layout={'visibility': 'hidden'}
+        )
+        self._close_notebook_button = ipw.Button(
+            description='Continue Workflow',
+            button_style='info',
+            disabled=True,
+            layout={'visibility': 'hidden'}
+        )
+
+        self._launch_notebook_button.on_click(
+            self._launch_active_notebook
+        )
+
+        self._close_notebook_button.on_click(
+            self._continue_workflow
         )
 
         self._worker_pool_selector = ipw.Dropdown()
@@ -115,7 +135,9 @@ class WorkflowWidget(ipw.HBox):
         self._task_area = ipw.VBox([
             ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
-            self.ipw.
+            aux.Space(height=20),
+            self._launch_notebook_button,
+            self._close_notebook_button,
             aux.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
@@ -286,14 +308,37 @@ class WorkflowWidget(ipw.HBox):
 
         # Link workflow readme
         self._workflow_readme_html.HTML.value = self.workflow.readme
-        self._workflow_readme_link = traitlets.link(
+        self._workflow_readme_link = tr.link(
             (self._workflow_readme_html.HTML, 'value'),
             (self.workflow, 'readme')
         )
 
+        # Observe notebook running
+        for node in self.workflow.dag.nodes():
+            if type(node) == kale.NotebookTask:
+                node.observe(self._display_notebook_button_if_active, names='randhash')
+
         # Run updates
         self._update_readme_html()
         self._update_log()
+
+
+    def _open_tab(self, url):
+        string = '<script>window.open("{}")</script>'.format(url)
+        return IPython.display.display(IPython.display.HTML(string))
+
+    def _launch_active_notebook(self, *args):
+        notebook = self.displayed_task.notebook
+        self._open_tab(notebook)
+
+    def _continue_workflow(self, *args):
+        self.displayed_task._continue_workflow()
+
+    def _display_notebook_button_if_active(self, change):
+        node = change['owner']
+
+        if self.displayed_task == node:
+            self._launch_notebook_button.disabled = False
 
     def _update_tag_selector(self, change=None):
         "Update tag selector to match tag_dict"
@@ -470,12 +515,33 @@ class WorkflowWidget(ipw.HBox):
             self._task_readme_html.HTML.value = task.readme
 
             # Link values
-            self._task_readme_link = traitlets.link(
+            self._task_readme_link = tr.link(
                 (self._task_readme_html.HTML, 'value'),
                 (task, 'readme')
             )
 
             self._task_readme_html.toggle_button.disabled = False
+
+            # "Open Notebook" button
+            if task.notebook is not None:
+                self._show_launch_notebook_button()
+            else:
+                self._hide_launch_notebook_button()
+
+            # "Continue Workflow" button
+            if type(task) == kale.NotebookTask:
+                self._show_close_notebook_button()
+            else:
+                self._hide_close_notebook_button()
+
+    def _show_launch_notebook_button(self, *args):
+        self._launch_notebook_button.layout.visibility = 'visible'
+    def _hide_launch_notebook_button(self, *args):
+        self._launch_notebook_button.layout.visibility = 'hidden'
+    def _show_close_notebook_button(self, *args):
+        self._close_notebook_button.layout.visibility = 'visible'
+    def _hide_close_notebook_button(self, *args):
+        self._close_notebook_button.layout.visibility = 'hidden'
 
     def _call_update_selected_node(self, change):
         """Display information relevant to newly selected node.
@@ -496,6 +562,9 @@ class WorkflowWidget(ipw.HBox):
                 print("Selected node {}".format(node_num))
 
             metadata = node.get_user_dict()
+
+        # Save current displayed task
+        self.displayed_task = node
 
         # Update metadata and readme
         self._update_metadata_html(metadata)
@@ -553,9 +622,9 @@ class WorkflowWidget(ipw.HBox):
 class WorkerPoolWidget(ipw.VBox):
     "GUI widget for managing WorkerPools."
 
-    _pool_list = traitlets.List()
-    _pool_dict = traitlets.Dict()
-    _workflow_widgets = traitlets.List()
+    _pool_list = tr.List()
+    _pool_dict = tr.Dict()
+    _workflow_widgets = tr.List()
 
     def __init__(self):
 

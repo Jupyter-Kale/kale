@@ -21,8 +21,8 @@ neigh_modify	every 20 delay 0 check no
 fix		1 all nve
 
 #dump		id all atom 50 dump.melt
-thermo		50
-dump		50 all custom 50 melt.lammpstrj id type xs ys zs ix iy iz
+thermo		500
+dump		500 all custom 50 melt.lammpstrj id type xs ys zs ix iy iz
 run	10000
 
 #dump		2 all image 25 image.*.jpg type type &

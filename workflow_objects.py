@@ -7,7 +7,7 @@ import numpy as np
 import ipywidgets as ipw
 from copy import copy, deepcopy
 from IPython.display import display, HTML
-import traitlets
+import traitlets as tr
 import os
 import time
 import batch_jobs
@@ -19,15 +19,15 @@ import pymongo
 from concurrent.futures import ThreadPoolExecutor
 
 
-class WorkerPool(traitlets.HasTraits):
+class WorkerPool(tr.HasTraits):
     "Pool of workers which can execute jobs."
 
-    futures = traitlets.List()
-    workers = traitlets.List()
-    wf_executor = traitlets.Unicode()
-    name = traitlets.Unicode()
-    location = traitlets.Unicode()
-    num_workers = traitlets.Int()
+    futures = tr.List()
+    workers = tr.List()
+    wf_executor = tr.Unicode()
+    name = tr.Unicode()
+    location = tr.Unicode()
+    num_workers = tr.Int()
 
     def __init__(self, name, num_workers, location='localhost',  wf_executor='fireworks'):
 
@@ -142,12 +142,12 @@ class WorkerPool(traitlets.HasTraits):
         print("FW Completed")
 
 
-class Worker(traitlets.HasTraits):
+class Worker(tr.HasTraits):
     """Compuational resource on which to execute jobs.
     Should be created by WorkerPool.
     """
 
-    pool = traitlets.Instance(WorkerPool)
+    pool = tr.Instance(WorkerPool)
 
     def __init__(self, pool, wf_executor='fireworks', *args, **kwargs):
 
@@ -165,16 +165,16 @@ class Worker(traitlets.HasTraits):
         )
 
 
-class Workflow(traitlets.HasTraits):
+class Workflow(tr.HasTraits):
 
-    dag = traitlets.Instance(networkx.DiGraph)
-    name = traitlets.Unicode()
-    index_dict = traitlets.Dict()
-    fig_layout = traitlets.Instance(ipw.Layout)
-    task_names = traitlets.List(trait=traitlets.Unicode())
-    wf_executor = traitlets.Unicode(allow_none=True)
-    readme = traitlets.Unicode()
-    tag_dict = traitlets.Dict()
+    dag = tr.Instance(networkx.DiGraph)
+    name = tr.Unicode()
+    index_dict = tr.Dict()
+    fig_layout = tr.Instance(ipw.Layout)
+    task_names = tr.List(trait=tr.Unicode())
+    wf_executor = tr.Unicode(allow_none=True)
+    readme = tr.Unicode()
+    tag_dict = tr.Dict()
 
     def __init__(self, name):
 
@@ -362,24 +362,26 @@ class Workflow(traitlets.HasTraits):
         pass
 
 
-class Task(traitlets.HasTraits):
+class Task(tr.HasTraits):
     "One step in a Workflow. Must have a unique name."
 
-    name = traitlets.Unicode()
-    task_type = traitlets.Unicode()
-    readme = traitlets.Unicode()
-    input_files = traitlets.List(trati=traitlets.Unicode())
-    output_files = traitlets.List(trait=traitlets.Unicode())
-    log_path = traitlets.Unicode()
-    num_cores = traitlets.Int()
-    index = traitlets.Dict()
-    dependencies = traitlets.Dict()
-    children = traitlets.Dict()
-    params = traitlets.Dict()
-    tags = traitlets.List()
+    name = tr.Unicode()
+    task_type = tr.Unicode()
+    readme = tr.Unicode()
+    input_files = tr.List(trati=tr.Unicode())
+    output_files = tr.List(trait=tr.Unicode())
+    log_path = tr.Unicode()
+    num_cores = tr.Int()
+    index = tr.Dict()
+    dependencies = tr.Dict()
+    children = tr.Dict()
+    params = tr.Dict()
+    tags = tr.List()
+    notebook = tr.Unicode(allow_none=True)
 
     def __init__(self, name, input_files=[], output_files=[], log_path='',
                  params={}, num_cores=1, task_type='', readme='', tags=[],
+                 notebook=None,
                 substitute_strings=[], substitute_lists=[],
                 user_fields=[]):
 
@@ -396,6 +398,9 @@ class Task(traitlets.HasTraits):
 
         # Tags - used for selecting & running groups of tasks.
         self.tags = tags
+
+        # For interactive monitoring (or standalone for NotebookTasks)
+        self.notebook = notebook
 
         # Files which this Task takes as input
         # and must be present before run.
@@ -527,28 +532,39 @@ class NotebookTask(Task):
     If false, notebook will be executed without opening,
     and Workflow will continue upon successful execution.
     """
+    
+    randhash = tr.Unicode(allow_none=True)
+
     def __init__(self, name, interactive=True, **kwargs):
         self.task_type = 'NotebookTask'
         self.interactive = interactive
         user_fields = ['interactive']
+
+        self.randhash = None
+        self.success_file = None
 
         super().__init__(
             name=name,
             user_fields=user_fields,
             **kwargs)
 
+    def _continue_workflow(self):
+        with open(self.success_file, 'w') as fh:
+            fh.write(self.randhash)
+
     def _run(self):
         print("Notebook run.")
 
     def _gen_firetask(self):
-        self._fifo_path = batch_jobs.gen_fifo()
-        self._rand_hash = batch_jobs.gen_random_hash()
+        self.randhash = batch_jobs.gen_random_hash()
+        self.success_file = batch_jobs.create_success_file()
 
         return fw.PyTask(
-            func='batch_jobs.wait_for_fifo',
+            func='nb_task.nb_poll_success_file',
             kwargs=dict(
-                path=self._fifo_path,
-                key=self._rand_hash
+                randhash=self.randhash,
+                success_file=self.success_file,
+                poll_interval=1
             )
         )
 
