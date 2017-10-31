@@ -11,6 +11,7 @@ import traitlets as tr
 import os
 import time
 import batch_jobs
+import yaml
 
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
@@ -108,7 +109,11 @@ class WorkerPool(tr.HasTraits):
     def init_fireworks(self):
         "Create Fireworks LaunchPad for this workflow."
 
-        self.lpad = fw.LaunchPad()
+        my_launchpad_path='/global/u2/o/oevans/.fireworks/my_launchpad.yaml' 
+        with open(my_launchpad_path) as param_file:
+            params = yaml.load(param_file)
+
+        self.lpad = fw.LaunchPad(**params)
         self.lpad.reset('', require_password=False)
 
     @_verify_executor('fireworks')

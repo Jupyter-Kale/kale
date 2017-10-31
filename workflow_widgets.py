@@ -79,21 +79,13 @@ class WorkflowWidget(ipw.HBox):
 
         self._workflow_readme_html = EditHTML()
         self._task_readme_html = EditHTML()
-        self._launch_notebook_button = ipw.Button(
-            description='Open Notebook',
-            button_style='success',
-            disabled=True,
-            layout={'visibility': 'hidden'}
-        )
+
+        self._launch_notebook_link = ipw.HTML()
         self._close_notebook_button = ipw.Button(
             description='Continue Workflow',
             button_style='info',
             disabled=True,
             layout={'visibility': 'hidden'}
-        )
-
-        self._launch_notebook_button.on_click(
-            self._launch_active_notebook
         )
 
         self._close_notebook_button.on_click(
@@ -136,7 +128,7 @@ class WorkflowWidget(ipw.HBox):
             ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
             aux.Space(height=20),
-            self._launch_notebook_button,
+            self._launch_notebook_link,
             self._close_notebook_button,
             aux.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
@@ -313,32 +305,12 @@ class WorkflowWidget(ipw.HBox):
             (self.workflow, 'readme')
         )
 
-        # Observe notebook running
-        for node in self.workflow.dag.nodes():
-            if type(node) == kale.NotebookTask:
-                node.observe(self._display_notebook_button_if_active, names='randhash')
-
         # Run updates
         self._update_readme_html()
         self._update_log()
 
-
-    def _open_tab(self, url):
-        string = '<script>window.open("{}")</script>'.format(url)
-        return IPython.display.display(IPython.display.HTML(string))
-
-    def _launch_active_notebook(self, *args):
-        notebook = self.displayed_task.notebook
-        self._open_tab(notebook)
-
     def _continue_workflow(self, *args):
         self.displayed_task._continue_workflow()
-
-    def _display_notebook_button_if_active(self, change):
-        node = change['owner']
-
-        if self.displayed_task == node:
-            self._launch_notebook_button.disabled = False
 
     def _update_tag_selector(self, change=None):
         "Update tag selector to match tag_dict"
@@ -522,22 +494,21 @@ class WorkflowWidget(ipw.HBox):
 
             self._task_readme_html.toggle_button.disabled = False
 
-            # "Open Notebook" button
-            if task.notebook is not None:
-                self._show_launch_notebook_button()
-            else:
-                self._hide_launch_notebook_button()
-
             # "Continue Workflow" button
             if type(task) == kale.NotebookTask:
                 self._show_close_notebook_button()
             else:
                 self._hide_close_notebook_button()
 
-    def _show_launch_notebook_button(self, *args):
-        self._launch_notebook_button.layout.visibility = 'visible'
-    def _hide_launch_notebook_button(self, *args):
-        self._launch_notebook_button.layout.visibility = 'hidden'
+    def update_launch_notebook_link(self, *args):
+        task = self.displayed_task
+        if task is None or task.notebook is None:
+            self._launch_notebook_link.value = ''
+        else:
+            self._launch_notebook_link.value = """
+                <a href='{}' target='_blank'>Launch Notebook</a>
+                """.format(task.notebook)
+
     def _show_close_notebook_button(self, *args):
         self._close_notebook_button.layout.visibility = 'visible'
     def _hide_close_notebook_button(self, *args):
@@ -548,13 +519,12 @@ class WorkflowWidget(ipw.HBox):
         To be called automatically by widget."""
 
         # Newly selected node (workflow step)
-        # (Only take first if several are selected)
+        # (Only take last if several are selected)
         if change['new'] is None:
             metadata = {}
             node = None
-
         else:
-            node_num = change['new'][0]
+            node_num = change['new'][-1]
 
             node = self.nodes[node_num]
 
@@ -570,6 +540,9 @@ class WorkflowWidget(ipw.HBox):
         self._update_metadata_html(metadata)
         self._update_readme_html(node)
         self._update_log(node)
+
+        # Update notebook link
+        self.update_launch_notebook_link()
 
     def _read_log(self, log_path):
         try:
