@@ -3,24 +3,24 @@
 
 # Auxillary widgets (NEWT, SLURM, etc.)
 
+import io
+import os
+import time
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+import json
+
 import numpy as np
 import ipyvolume.pylab as p3
 import pandas as pd
-import io
-import os
 import subprocess as sp
 import IPython
 import ipyvolume as ipv
 import itertools as it
 import ipywidgets as ipw
-import time
-from datetime import datetime
-import lammps_gen as lg
 import IPython.core.display as disp
 import requests
 import paramiko
-from concurrent.futures import ThreadPoolExecutor
-import json
 import traitlets
 from weakref import WeakSet
 

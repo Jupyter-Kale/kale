@@ -1,24 +1,23 @@
 # Oliver Evans
 # August 7, 2017
 
+import os
+import time
+import yaml
+from copy import copy, deepcopy
+from concurrent.futures import ThreadPoolExecutor
+
 import bqplot as bq
 import networkx
 import numpy as np
 import ipywidgets as ipw
-from copy import copy, deepcopy
 from IPython.display import display, HTML
 import traitlets as tr
-import os
-import time
-import batch_jobs
-import yaml
-
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
 import pymongo
 
-from concurrent.futures import ThreadPoolExecutor
-
+import batch_jobs
 
 class WorkerPool(tr.HasTraits):
     "Pool of workers which can execute jobs."

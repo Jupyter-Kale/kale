@@ -1,15 +1,17 @@
 # Oliver Evans
 # August 7, 2017
 
-import ipywidgets as ipw
-import aux_widgets as aux
-import workflow_objects as kale
-import IPython
-import time
-import traitlets as tr
-import bqplot as bq
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 import multiprocessing
+import time
+
+import ipywidgets as ipw
+import aux_widgets as aux
+import IPython
+import traitlets as tr
+import bqplot as bq
+
+import workflow_objects as kale
 
 class EditHTML(ipw.VBox):
     def __init__(self, value='', text_height=400):

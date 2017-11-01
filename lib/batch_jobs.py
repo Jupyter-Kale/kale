@@ -1,11 +1,12 @@
 import time
 import os
+import sys
 from concurrent.futures import ThreadPoolExecutor
 import subprocess
-import ipywidgets as ipw
 import random
+
+import ipywidgets as ipw
 import tempfile
-import sys
 
 def determine_batch_manager():
     options = {
