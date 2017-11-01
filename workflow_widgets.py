@@ -9,6 +9,7 @@ import time
 import traitlets as tr
 import bqplot as bq
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import multiprocessing
 
 class EditHTML(ipw.VBox):
     def __init__(self, value='', text_height=400):
@@ -81,14 +82,14 @@ class WorkflowWidget(ipw.HBox):
         self._task_readme_html = EditHTML()
 
         self._launch_notebook_link = ipw.HTML()
-        self._close_notebook_button = ipw.Button(
+        self._continue_workflow_button = ipw.Button(
             description='Continue Workflow',
             button_style='info',
-            disabled=True,
+            disabled=False,
             layout={'visibility': 'hidden'}
         )
 
-        self._close_notebook_button.on_click(
+        self._continue_workflow_button.on_click(
             self._continue_workflow
         )
 
@@ -129,7 +130,7 @@ class WorkflowWidget(ipw.HBox):
             self._task_readme_html,
             aux.Space(height=20),
             self._launch_notebook_link,
-            self._close_notebook_button,
+            self._continue_workflow_button,
             aux.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
@@ -496,9 +497,9 @@ class WorkflowWidget(ipw.HBox):
 
             # "Continue Workflow" button
             if type(task) == kale.NotebookTask:
-                self._show_close_notebook_button()
+                self._show_continue_workflow_button()
             else:
-                self._hide_close_notebook_button()
+                self._hide_continue_workflow_button()
 
     def update_launch_notebook_link(self, *args):
         task = self.displayed_task
@@ -509,10 +510,14 @@ class WorkflowWidget(ipw.HBox):
                 <a href='{}' target='_blank'>Launch Notebook</a>
                 """.format(task.notebook)
 
-    def _show_close_notebook_button(self, *args):
-        self._close_notebook_button.layout.visibility = 'visible'
-    def _hide_close_notebook_button(self, *args):
-        self._close_notebook_button.layout.visibility = 'hidden'
+    def _show_continue_workflow_button(self, *args):
+        self._continue_workflow_button.layout.visibility = 'visible'
+    def _hide_continue_workflow_button(self, *args):
+        self._continue_workflow_button.layout.visibility = 'hidden'
+    def _enable_continue_workflow_button(self, *args):
+        self._continue_workflow_button.disabled = False
+    def _disable_continue_workflow_button(self, *args):
+        self._continue_workflow_button.disabled = True
 
     def _call_update_selected_node(self, change):
         """Display information relevant to newly selected node.
@@ -656,7 +661,7 @@ class WorkerPoolWidget(ipw.VBox):
         )
 
         # Add default pool
-        self.add_pool('default', 4)
+        self.add_pool('default', multiprocessing.cpu_count())
 
     def get_locations(self):
         "Get locations where workers can be created."

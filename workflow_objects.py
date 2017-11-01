@@ -659,9 +659,9 @@ class BatchTask(Task):
     def _gen_firetask(self):
         return fw.PyTask(
             func='batch_jobs.run_batch_job',
-            args=self.batch_script,
+            args=[self.batch_script],
             kwargs=dict(
-                node_property=self.node_property,
+                #node_property=self.node_property,
                 poll_interval=self.poll_interval
             )
         )
