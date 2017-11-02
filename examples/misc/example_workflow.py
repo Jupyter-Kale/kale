@@ -1,8 +1,8 @@
-import workflow_objects as kale
+import kale.workflow_objects
 
-t = kale.Task('test')
+t = kale.workflow_objects.Task('test')
 
-example_wf = kale.Workflow('example_wf')
+example_wf = kale.workflow_objects.Workflow('example_wf')
 example_wf.readme = """
 <h1>Example Workflow</h1>
 <br>
@@ -22,7 +22,7 @@ n_echos = 10
 n_tasks = 3
 out_file = "out.txt"
 
-pwd_task = kale.CommandLineTask(
+pwd_task = kale.workflow_objects.CommandLineTask(
     name='pwd_task',
     command="""echo "Hello from '`pwd`'." > {out_file}""",
     output_files=["{out_file}"],
@@ -37,7 +37,7 @@ This task prints the current working directory.
 """
 
 echo_tasks = [
-    kale.CommandLineTask(
+    kale.workflow_objects.CommandLineTask(
         name='echo_task_{i}',
         command='for j in {{1..{n_echos}}}; do echo "Hello #{i}: $j" >> {out_file}; sleep 1; done',
         output_files=["{out_file}"],
@@ -62,7 +62,7 @@ for i,task in enumerate(echo_tasks):
     """.format(i=i)
 
 
-done_task = kale.CommandLineTask(
+done_task = kale.workflow_objects.CommandLineTask(
     name='done_task',
     command="echo 'Done!' >> {out_file}",
     output_files=["{out_file}"],

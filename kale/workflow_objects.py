@@ -1,36 +1,37 @@
 # Oliver Evans
 # August 7, 2017
 
-import bqplot as bq
-import networkx
-import numpy as np
-import ipywidgets as ipw
-from copy import copy, deepcopy
-from IPython.display import display, HTML
-import traitlets as tr
+# stdlib
 import os
 import time
-import batch_jobs
-import yaml
-
-import fireworks as fw
-from fireworks.core.rocket_launcher import rapidfire
-import pymongo
 
 from concurrent.futures import ThreadPoolExecutor
 
+# 3rd party
+import bqplot as bq
+import networkx
+import ipywidgets as ipw
+import traitlets
+import fireworks as fw
+from fireworks.core.rocket_launcher import rapidfire
 
-class WorkerPool(tr.HasTraits):
-    "Pool of workers which can execute jobs."
+# local
+import kale.batch_jobs
 
-    futures = tr.List()
-    workers = tr.List()
-    wf_executor = tr.Unicode()
-    name = tr.Unicode()
-    location = tr.Unicode()
-    num_workers = tr.Int()
 
-    def __init__(self, name, num_workers, location='localhost',  wf_executor='fireworks'):
+# TODO - update all instances of default arguments set to a mutable e.g.; [], {}
+
+class WorkerPool(traitlets.HasTraits):
+    """Pool of workers which can execute jobs."""
+
+    futures = traitlets.List()
+    workers = traitlets.List()
+    wf_executor = traitlets.Unicode()
+    name = traitlets.Unicode()
+    location = traitlets.Unicode()
+    num_workers = traitlets.Int()
+
+    def __init__(self, name, num_workers, fwconfig=None, location='localhost',  wf_executor='fireworks'):
 
         super().__init__()
 
@@ -38,6 +39,7 @@ class WorkerPool(tr.HasTraits):
         self.workers = []
         self.wf_executor = wf_executor
         self.name = name
+        self.fwconfig = fwconfig
         self.location = location
         self.log_area = ipw.Output()
 
@@ -67,7 +69,7 @@ class WorkerPool(tr.HasTraits):
         return decorator
 
     def _add_workers(self, num_workers, *args, **kwargs):
-        "Add workers to pool."
+        """Add workers to pool."""
         self.workers += [
             Worker(
                 pool=self,
@@ -75,11 +77,12 @@ class WorkerPool(tr.HasTraits):
                 *args,
                 **kwargs
             )
+            # TODO - might be more readable as a loop than list comprehension
             for i in range(num_workers)
         ]
 
     def _log_decorator(self, fun):
-        "Execute function and log output."
+        """Execute function and log output."""
         #def wrapper(*args, **kwargs):
         #    with self.log_area:
         #        return fun(*args, **kwargs)
@@ -90,7 +93,7 @@ class WorkerPool(tr.HasTraits):
 
     @_verify_executor('fireworks')
     def _fw_rapidfire(self, workflow):
-        "Execute workflow in rapidfire with Workers."
+        """Execute workflow in rapidfire with Workers."""
 
         # All workers should concurrently pull jobs.
         with ThreadPoolExecutor() as executor:
@@ -107,18 +110,22 @@ class WorkerPool(tr.HasTraits):
 
     @_verify_executor('fireworks')
     def init_fireworks(self):
-        "Create Fireworks LaunchPad for this workflow."
+        """Create Fireworks LaunchPad for this workflow."""
 
-        my_launchpad_path='/global/u2/o/oevans/.fireworks/my_launchpad.yaml' 
-        with open(my_launchpad_path) as param_file:
-            params = yaml.load(param_file)
+        # TODO - sanity checks on config file
+        if self.fwconfig:
+            with open(self.fwconfig) as param_file:
+                params = yaml.load(param_file)
+            self.lpad = fw.LaunchPad(**params)
+        else:
+            self.lpad = fw.LaunchPad()
 
-        self.lpad = fw.LaunchPad(**params)
-        self.lpad.reset('', require_password=False)
+        # TODO - resetting the FW DB here breaks if everything is not local
+        #self.lpad.reset('', require_password=False)
 
     @_verify_executor('fireworks')
     def _fw_queue(self, workflow):
-        "Generate subDAG and queue via Fireworks."
+        """Generate subDAG and queue via Fireworks."""
 
         dag = workflow.gen_subdag()
 
@@ -139,7 +146,7 @@ class WorkerPool(tr.HasTraits):
 
     @_verify_executor('fireworks')
     def fw_run(self, workflow):
-        "Queue jobs from workflow and execute them all via Fireworks."
+        """Queue jobs from workflow and execute them all via Fireworks."""
         print("FW Run")
         self._fw_queue(workflow)
         print("FQ Queued")
@@ -147,12 +154,12 @@ class WorkerPool(tr.HasTraits):
         print("FW Completed")
 
 
-class Worker(tr.HasTraits):
-    """Compuational resource on which to execute jobs.
+class Worker(traitlets.HasTraits):
+    """Computational resource on which to execute jobs.
     Should be created by WorkerPool.
     """
 
-    pool = tr.Instance(WorkerPool)
+    pool = traitlets.Instance(WorkerPool)
 
     def __init__(self, pool, wf_executor='fireworks', *args, **kwargs):
 
@@ -170,16 +177,16 @@ class Worker(tr.HasTraits):
         )
 
 
-class Workflow(tr.HasTraits):
+class Workflow(traitlets.HasTraits):
 
-    dag = tr.Instance(networkx.DiGraph)
-    name = tr.Unicode()
-    index_dict = tr.Dict()
-    fig_layout = tr.Instance(ipw.Layout)
-    task_names = tr.List(trait=tr.Unicode())
-    wf_executor = tr.Unicode(allow_none=True)
-    readme = tr.Unicode()
-    tag_dict = tr.Dict()
+    dag = traitlets.Instance(networkx.DiGraph)
+    name = traitlets.Unicode()
+    index_dict = traitlets.Dict()
+    fig_layout = traitlets.Instance(ipw.Layout)
+    task_names = traitlets.List(trait=traitlets.Unicode())
+    wf_executor = traitlets.Unicode(allow_none=True)
+    readme = traitlets.Unicode()
+    tag_dict = traitlets.Dict()
 
     def __init__(self, name):
 
@@ -244,7 +251,7 @@ class Workflow(tr.HasTraits):
         self._task_add_tags(task, task.tags)
 
     def get_task_by_name(self, name):
-        "Return the Task object with the given name in this Workflow."
+        """Return the Task object with the given name in this Workflow."""
         for task in self.dag.nodes():
             try:
                 if task.name == name:
@@ -255,7 +262,7 @@ class Workflow(tr.HasTraits):
     ### Something will probably go wrong with tag_dict if a task belongs to multiple workflows ###
 
     def _task_add_tags(self, task, tags):
-        "Add list of tags to task."
+        """Add list of tags to task."""
         task.tags = list(set().union(task.tags, tags))
         for tag in tags:
             if tag not in self.tag_dict:
@@ -264,14 +271,14 @@ class Workflow(tr.HasTraits):
                 self.tag_dict[tag].append(task)
 
     def _task_remove_tags(self, task, tags):
-        "Remove list of tags from task"
+        """Remove list of tags from task"""
         task.tags = list(set(task.tags).difference(tags))
         for tag in tags:
             index = self.tag_dict[tag].index(task)
             self.tag_dict[tag].pop(index)
 
     def _del_tag(self, tag):
-        "Delete tag and remove all "
+        """Delete tag and remove all """
         tasks = self.tag_dict[tag]
         for task in tasks:
             self._task_remove_tags(task, [tag])
@@ -282,7 +289,7 @@ class Workflow(tr.HasTraits):
             self.tag_dict[tag] = []
 
     def _tag_set_tasks(self, tag, tasks):
-        "Add tag to given tasks, and remove it from others."
+        """Add tag to given tasks, and remove it from others."""
         # Remove tag from all other tasks
         presently_tagged = self.tag_dict[tag][:]
         for task in presently_tagged:
@@ -293,7 +300,7 @@ class Workflow(tr.HasTraits):
             self._task_add_tags(task, [tag])
 
     def _gen_bqgraph(self):
-        "Generate bqplot graph."
+        """Generate bqplot graph."""
 
         pos = networkx.nx_pydot.graphviz_layout(self.dag, prog='dot')
         N = self.dag.number_of_nodes()
@@ -341,11 +348,11 @@ class Workflow(tr.HasTraits):
         return graph
 
     def get_bqgraph(self):
-        "Retrieve, but do not regenerate bqplot graph."
+        """Retrieve, but do not regenerate bqplot graph."""
         return self._bqgraph
 
     def draw_dag(self, layout=None):
-        "Return bqplot figure representing DAG, regenerating graph."
+        """Return bqplot figure representing DAG, regenerating graph."""
 
         self._bqgraph = self._gen_bqgraph()
 
@@ -360,35 +367,36 @@ class Workflow(tr.HasTraits):
         return ipw.VBox([fig, toolbar])
 
     def gen_subdag(self):
-        "Return DAG containing only steps which are to be run. (Not yet implemented.)"
+        """Return DAG containing only steps which are to be run. (Not yet implemented.)"""
         return self.dag
 
     def export_cwl(self, cwl_file):
         pass
 
 
-class Task(tr.HasTraits):
-    "One step in a Workflow. Must have a unique name."
+class Task(traitlets.HasTraits):
+    """One step in a Workflow. Must have a unique name."""
 
-    name = tr.Unicode()
-    task_type = tr.Unicode()
-    readme = tr.Unicode()
-    input_files = tr.List(trati=tr.Unicode())
-    output_files = tr.List(trait=tr.Unicode())
-    log_path = tr.Unicode()
-    num_cores = tr.Int()
-    index = tr.Dict()
-    dependencies = tr.Dict()
-    children = tr.Dict()
-    params = tr.Dict()
-    tags = tr.List()
-    notebook = tr.Unicode(allow_none=True)
+    name = traitlets.Unicode()
+    task_type = traitlets.Unicode()
+    readme = traitlets.Unicode()
+    input_files = traitlets.List(trati=traitlets.Unicode())
+    output_files = traitlets.List(trait=traitlets.Unicode())
+    log_path = traitlets.Unicode()
+    num_cores = traitlets.Int()
+    index = traitlets.Dict()
+    dependencies = traitlets.Dict()
+    children = traitlets.Dict()
+    params = traitlets.Dict()
+    tags = traitlets.List()
+    notebook = traitlets.Unicode(allow_none=True)
 
+    # TODO - set all defaults to None, check each arg and assign list as needed
     def __init__(self, name, input_files=[], output_files=[], log_path='',
                  params={}, num_cores=1, task_type='', readme='', tags=[],
                  notebook=None,
-                substitute_strings=[], substitute_lists=[],
-                user_fields=[]):
+                 substitute_strings=[], substitute_lists=[],
+                 user_fields=[]):
 
         super().__init__()
 
@@ -467,7 +475,7 @@ class Task(tr.HasTraits):
         self._firework = None
 
     def get_user_dict(self):
-        "Generate dictionary of user field names and values"
+        """Generate dictionary of user field names and values"""
         return {
             field: getattr(self, field)
             for field in self.user_fields
@@ -498,8 +506,12 @@ class Task(tr.HasTraits):
 
         return self._firework
 
+    # TODO - fill this out
+    def _gen_firetask(self):
+        pass
+
     def _substitute_fields(self):
-        "Replace fields according to params dict."
+        """Replace fields according to params dict."""
         for field in self._substitute_strings:
             # Read current value
             before = getattr(self,field)
@@ -565,7 +577,7 @@ class NotebookTask(Task):
         self.success_file = batch_jobs.create_success_file()
 
         return fw.PyTask(
-            func='nb_task.nb_poll_success_file',
+            func='kale.nb_task.nb_poll_success_file',
             kwargs=dict(
                 randhash=self.randhash,
                 success_file=self.success_file,
@@ -574,7 +586,7 @@ class NotebookTask(Task):
         )
 
 class CommandLineTask(Task):
-    "Command Line Task to be executed as a Workflow step."
+    """Command Line Task to be executed as a Workflow step."""
     def __init__(self, name, command, nodes_cores=1, node_property=None, poll_interval=60, **kwargs):
 
         self.command = command
@@ -596,10 +608,10 @@ class CommandLineTask(Task):
         print("Command Line run.")
 
     def _gen_firetask(self):
-        "Create a Firework for this task."
+        """Create a Firework for this task."""
         #return fw.ScriptTask.from_str(self.command)
         return fw.PyTask(
-            func='batch_jobs.run_cmd_job',
+            func='kale.batch_jobs.run_cmd_job',
             kwargs=dict(
                 command=self.command,
                 name=self.name,
@@ -611,7 +623,7 @@ class CommandLineTask(Task):
 
 
 class PythonFunctionTask(Task):
-    "Python function call to be executed as a Workflow step."
+    """Python function call to be executed as a Workflow step."""
     def __init__(self, name, func, args=[], kwargs={}, **other_kwargs):
         # Actual callable function to be executed.
         self.func = func
@@ -629,7 +641,7 @@ class PythonFunctionTask(Task):
 
     def _run(self):
         print("Python function run.")
-        return self.fun(*args, **kwargs)
+        return self.func(*self.args, **self.kwargs)
 
     def _gen_firetask(self):
         return fw.PyTask(
@@ -639,7 +651,7 @@ class PythonFunctionTask(Task):
         )
 
 class BatchTask(Task):
-    "Task which will be submitted to a batch queue to execute."
+    """Task which will be submitted to a batch queue to execute."""
     def __init__(self, name, batch_script, node_property=None, poll_interval=60, **kwargs):
         self.batch_script = batch_script
         self.node_property = node_property
@@ -658,9 +670,10 @@ class BatchTask(Task):
 
     def _gen_firetask(self):
         return fw.PyTask(
-            func='batch_jobs.run_batch_job',
+            func='kale.batch_jobs.run_batch_job',
             args=[self.batch_script],
             kwargs=dict(
+                # TODO - review node_property
                 #node_property=self.node_property,
                 poll_interval=self.poll_interval
             )

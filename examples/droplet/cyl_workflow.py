@@ -1,7 +1,7 @@
 # Oliver Evans
 # August 7, 2017
 
-from workflow_objects import *
+from kale.workflow_objects import *
 
 cyl_wf = Workflow('Cylinder Workflow')
 

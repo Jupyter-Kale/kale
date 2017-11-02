@@ -1,8 +1,7 @@
+# stdlib
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
 import subprocess
-import ipywidgets as ipw
 import random
 import tempfile
 import sys
@@ -29,7 +28,7 @@ def wait_for_fifo(path, key):
             sys.exit(1)
 
 def gen_fifo():
-    fname = subprocess.watch_output('mktemp -u -p . -t .watch_nb.XXXXXXXXXX', shell=True).decode().strip()
+    fname = subprocess.getoutput('mktemp -u -p . -t .watch_nb.XXXXXXXXXX').strip()
     subprocess.call(['mkfifo',fname])
     return fname
 
@@ -70,34 +69,34 @@ def create_appended_text_file(path, addition):
 
 def create_success_file():
     fd, path = tempfile.mkstemp(prefix='.watch_job_', dir='.')
+    os.close(fd)
     return path
 
 def wrap_batch_script(batch_script, success_file, randhash):
-    
     success_command = """
-    echo '{randhash}' > {success_file}
-    while [ -z $(grep -Fx '{randhash}' '{success_file}') ]
-    do
-        sleep 1
-    done
+    stdbuf -o0 -e0 echo '{randhash}' > {success_file}
+    #while [ -z $(grep -Fx '{randhash}' '{success_file}') ]
+    #do
+    #    sleep 1
+    #done
     """.format(
-        randhash=randhash, 
+        randhash=randhash,
         success_file=success_file
     )
-    
+
     new_batch_script = create_appended_text_file(
-        batch_script, 
+        batch_script,
         success_command
     )
-    
+
     return new_batch_script
 
 def submit_batch_script(script_path):
     """Submit job, decode job_id bytes & remove newline
     Holds are passed to qsub via -h.
     """
-    with open(script_path) as fh:
-        print(fh.read())
+    #with open(script_path) as fh:
+    #    print(fh.read())
 
     batch_manager = determine_batch_manager()
     if batch_manager == 'torque':
@@ -117,10 +116,10 @@ def poll_success_file(filepath, job_id, randhash, poll_interval):
         check_cmd = 'squeue -h --job'
 
     try:
-        print("Before while")
+        #print("Before while")
         while job_running(job_id, check_cmd):
             time.sleep(poll_interval)
-        print("After while")
+        #print("After while")
 
         # Job is no longer in batch queue
         try:
@@ -130,23 +129,24 @@ def poll_success_file(filepath, job_id, randhash, poll_interval):
                 print("Job success.")
             elif message == '':
                 print("Job failed.")
-                sys.exit(1)
+                #sys.exit(1)
             else:
                 print("Wrong hash!")
                 print("Wanted '{}'".format(randhash))
                 print("Received '{}'".format(message))
-                sys.exit(1)
+                #sys.exit(1)
         except FileNotFoundError:
             # No success message means job failed
             print("Unexpected error.")
-            sys.exit(1)
+            #sys.exit(1)
     finally:
         # Always delete success file
         os.remove(filepath)
 
-def run_batch_job(batch_script, poll_interval=60):
+def run_batch_job(batch_script, node_property=None, poll_interval=60):
     print("Run batch job")
     success_file = create_success_file()
+    #print(success_file)
     randhash = gen_random_hash()
     
     new_batch_script = wrap_batch_script(
@@ -188,6 +188,8 @@ def get_nodes_string(nodes_cores, node_property):
 
     return node_string
 
+
+# TODO - review
 def run_cmd_job(command, name, nodes_cores, time='10:00', node_property=None, poll_interval=60, mpiexec="/opt/open-mpi/ib-gnu44/bin/mpiexec"):
     tmp_batch_script = get_tempfile()
     batch_manager = determine_batch_manager()

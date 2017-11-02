@@ -1,15 +1,20 @@
 # Oliver Evans
 # August 7, 2017
 
-import ipywidgets as ipw
-import aux_widgets as aux
-import workflow_objects as kale
-import IPython
+# stdlib
 import time
-import traitlets as tr
-import bqplot as bq
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
+
+# 3rd party
+import ipywidgets as ipw
+import traitlets
+import bqplot as bq
+
+# local
+import kale.aux_widgets
+import kale.workflow_objects
+
 
 class EditHTML(ipw.VBox):
     def __init__(self, value='', text_height=400):
@@ -20,7 +25,7 @@ class EditHTML(ipw.VBox):
 
         self.elements = [self.HTML, self.Text]
         self.descriptions = ['Edit Description', 'Render Description']
-        tr.link((self.HTML, 'value'), (self.Text, 'value'))
+        traitlets.link((self.HTML, 'value'), (self.Text, 'value'))
 
         # Set height and width of Textarea
         self.Text.layout.height = u'{}px'.format(text_height)
@@ -40,13 +45,15 @@ class EditHTML(ipw.VBox):
         self.children = [self.elements[state], self.toggle_button]
         self.toggle_button.description = self.descriptions[state]
 
+    # TODO - caller unused
     def toggle(self, caller):
         self.set_view((self.state+1)%2)
 
+# TODO - review
 class WorkflowWidget(ipw.HBox):
-    "Widget to draw DAG via bqplot and provide node-level info/interaction."
+    """Widget to draw DAG via bqplot and provide node-level info/interaction."""
 
-    displayed_task = tr.Any()
+    displayed_task = traitlets.Any()
 
     @property
     def bqgraph(self):
@@ -112,7 +119,7 @@ class WorkflowWidget(ipw.HBox):
 
         # self._info_area = ipw.VBox([
         #     self._readme_html,
-        #     aux.Space(height=20),
+        #     kale.aux_widgets.Space(height=20),
         #     self._metadata_html,
         #     self._notebook_button
         # ])
@@ -120,7 +127,7 @@ class WorkflowWidget(ipw.HBox):
         self._workflow_area = ipw.VBox([
             ipw.HTML("<b>Workflow Description</b>"),
             self._workflow_readme_html,
-            aux.Space(height=20),
+            kale.aux_widgets.Space(height=20),
             ipw.HTML("<b>Worker Pools</b>"),
             self._workflow_controls
         ])
@@ -128,7 +135,7 @@ class WorkflowWidget(ipw.HBox):
         self._task_area = ipw.VBox([
             ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
-            aux.Space(height=20),
+            kale.aux_widgets.Space(height=20),
             self._launch_notebook_link,
             self._continue_workflow_button,
             aux.Space(height=20),
@@ -218,7 +225,7 @@ class WorkflowWidget(ipw.HBox):
         self._widget_log_area = ipw.VBox([
             ipw.HTML("<b>Messages from WorkflowWidget:</b>"),
             self._widget_log_container,
-            aux.Space(10),
+            kale.aux_widgets.Space(10),
             self._log_clear_button
         ])
 
@@ -280,6 +287,7 @@ class WorkflowWidget(ipw.HBox):
         self._thread_pool = ThreadPoolExecutor()
         self.future = None
 
+        # TODO - onsubmit deprecated
         # Logic
         self.bqgraph.observe(self._call_update_selected_node, names='selected')
         self._log_path_input.on_submit(self._call_read_log)
@@ -301,7 +309,7 @@ class WorkflowWidget(ipw.HBox):
 
         # Link workflow readme
         self._workflow_readme_html.HTML.value = self.workflow.readme
-        self._workflow_readme_link = tr.link(
+        self._workflow_readme_link = traitlets.link(
             (self._workflow_readme_html.HTML, 'value'),
             (self.workflow, 'readme')
         )
@@ -314,7 +322,7 @@ class WorkflowWidget(ipw.HBox):
         self.displayed_task._continue_workflow()
 
     def _update_tag_selector(self, change=None):
-        "Update tag selector to match tag_dict"
+        """Update tag selector to match tag_dict"""
         self._tag_selector.options = self.workflow.tag_dict.keys()
 
     def get_selected_tasks(self):
@@ -327,7 +335,7 @@ class WorkflowWidget(ipw.HBox):
         return [task.index[self.workflow] for task in self.get_selected_tasks()]
 
     def _get_children(self, tasks):
-        "Return children of all provided tasks."
+        """Return children of all provided tasks."""
         children_list = []
         for task in tasks:
             children = self.workflow.dag.successors(task)
@@ -337,7 +345,7 @@ class WorkflowWidget(ipw.HBox):
         return all_children
 
     def _get_parents(self, tasks):
-        "Return parents of provided tasks"
+        """Return parents of provided tasks"""
         parents_list = []
         for task in tasks:
             parents = self.workflow.dag.predecessors(task)
@@ -357,7 +365,7 @@ class WorkflowWidget(ipw.HBox):
         self.bqgraph.selected = None
 
     def _ta_select_children(self, *args, **kwargs):
-        "Select children of all presently selected tasks."
+        """Select children of all presently selected tasks."""
         selected_tasks = self.get_selected_tasks()
         all_children = self._get_children(selected_tasks)
         children_indices = [child.index[self.workflow] for child in all_children]
@@ -367,7 +375,7 @@ class WorkflowWidget(ipw.HBox):
             self.bqgraph.selected = None
 
     def _ta_select_parents(self, *args, **kwargs):
-        "Append parents of all presently selected tasks to the selection."
+        """Append parents of all presently selected tasks to the selection."""
         selected_tasks = self.get_selected_tasks()
         all_parents = self._get_parents(selected_tasks)
         parents_indices = [parent.index[self.workflow] for parent in all_parents]
@@ -377,7 +385,7 @@ class WorkflowWidget(ipw.HBox):
             self.bqgraph.selected = None
 
     def _ta_append_all_children(self, *args, **kwargs):
-        "Recursively append children's children to selection."
+        """Recursively append children's children to selection."""
         selected = self.get_selected_tasks()
         all_children = selected
         direct_children = selected
@@ -388,9 +396,8 @@ class WorkflowWidget(ipw.HBox):
         indices = [child.index[self.workflow] for child in all_children]
         self.bqgraph.selected = indices
 
-
     def _ta_append_all_parents(self, *args, **kwargs):
-        "Recursively append parents's parents to selection."
+        """Recursively append parents's parents to selection."""
         selected = self.get_selected_tasks()
         all_parents = selected
         direct_parents = selected
@@ -400,7 +407,6 @@ class WorkflowWidget(ipw.HBox):
             all_parents += direct_parents
         indices = [parent.index[self.workflow] for parent in all_parents]
         self.bqgraph.selected = indices
-
 
     def _ta_tag_to_selection(self, *args, **kwargs):
         tag = self._tag_selector.value
@@ -456,7 +462,7 @@ class WorkflowWidget(ipw.HBox):
         self._metadata_html.value = html
 
     def _update_readme_html(self, task=None):
-        "Link README HTML to task."
+        """Link README HTML to task."""
 
         # if task is None:
         #     name = 'None'
@@ -488,7 +494,7 @@ class WorkflowWidget(ipw.HBox):
             self._task_readme_html.HTML.value = task.readme
 
             # Link values
-            self._task_readme_link = tr.link(
+            self._task_readme_link = traitlets.link(
                 (self._task_readme_html.HTML, 'value'),
                 (task, 'readme')
             )
@@ -496,7 +502,7 @@ class WorkflowWidget(ipw.HBox):
             self._task_readme_html.toggle_button.disabled = False
 
             # "Continue Workflow" button
-            if type(task) == kale.NotebookTask:
+            if type(task) == kale.workflow_objects.NotebookTask:
                 self._show_continue_workflow_button()
             else:
                 self._hide_continue_workflow_button()
@@ -576,7 +582,7 @@ class WorkflowWidget(ipw.HBox):
                 self.future = self._thread_pool.submit(self.run_workflow)
 
     def run_workflow(self, *args):
-        "Run workflow with selected WorkerPool."
+        """Run workflow with selected WorkerPool."""
 
         # Disable start job button upon submission
         self._run_button.disabled = True
@@ -598,16 +604,16 @@ class WorkflowWidget(ipw.HBox):
 
 
 class WorkerPoolWidget(ipw.VBox):
-    "GUI widget for managing WorkerPools."
+    """GUI widget for managing WorkerPools."""
 
-    _pool_list = tr.List()
-    _pool_dict = tr.Dict()
-    _workflow_widgets = tr.List()
+    _pool_list = traitlets.List()
+    _pool_dict = traitlets.Dict()
+    _workflow_widgets = traitlets.List()
 
     def __init__(self):
 
         # Keep track of available hosts
-        self.ssh_hosts = aux.SSHAuthWidget.open_connections
+        self.ssh_hosts = kale.aux_widgets.SSHAuthWidget.open_connections
 
         # UI
         self.out_area = ipw.Output()
@@ -622,7 +628,7 @@ class WorkerPoolWidget(ipw.VBox):
         )
 
         self._header = ipw.HTML("<h3>Worker Pools</h3>")
-        self.table = aux.TableWidget(
+        self.table = kale.aux_widgets.TableWidget(
             [["<b>Name</b>", "<b>Location</b>",
             "<b>Workers</b>", "<b>Action</b>"],
             [self._name_text, self._location_text,
@@ -664,11 +670,11 @@ class WorkerPoolWidget(ipw.VBox):
         self.add_pool('default', multiprocessing.cpu_count())
 
     def get_locations(self):
-        "Get locations where workers can be created."
+        """Get locations where workers can be created."""
         return ['localhost'] + list(self.ssh_hosts.keys())
 
     def add_pool(self, name, num_workers, location='localhost'):
-        "Add WorkerPool with name `name` and `num_workers` workers to widget."
+        """Add WorkerPool with name `name` and `num_workers` workers to widget."""
         # Check for name conflicts
         if name in self._pool_dict.keys():
             self.set_status(
@@ -678,7 +684,7 @@ class WorkerPoolWidget(ipw.VBox):
         else:
 
             #with self.out_area:
-            pool = kale.WorkerPool(name, num_workers, location)
+            pool = kale.workflow_objects.WorkerPool(name, num_workers, location)
 
             remove_button = ipw.Button(
                 description="Remove",
@@ -709,7 +715,7 @@ class WorkerPoolWidget(ipw.VBox):
             self.set_status("WorkerPool '{}' created.".format(name), alert_style='success')
 
     def _watch_add_pool(self, caller):
-        "Add worker pool to widget. To be called by button."
+        """Add worker pool to widget. To be called by button."""
         num_workers = self._num_workers_text.value
         location = self._location_text.value
         name = self._name_text.value
@@ -720,11 +726,11 @@ class WorkerPoolWidget(ipw.VBox):
         self._name_text.value = ''
 
     def get_pool(self, name):
-        "Get worker pool by name"
+        """Get worker pool by name"""
         return self._pool_dict[name]
 
     def pop_pool(self, index):
-        "Remove worker pool in row `index` from widget, and return the pool, as in `list.pop`."
+        """Remove worker pool in row `index` from widget, and return the pool, as in `list.pop`."""
         row = self.table.pop_row(index)
         name = row.children[0].children[0].value
         pool = self._pool_dict.pop(name)
@@ -746,7 +752,7 @@ class WorkerPoolWidget(ipw.VBox):
             ww._worker_pool_selector.options = self._pool_list
 
     def _remove_button(self, button):
-        "To be called by remove button."
+        """To be called by remove button."""
         index = button.row.get_index()
         self.pop_pool(index)
 
@@ -755,6 +761,9 @@ class WorkerPoolWidget(ipw.VBox):
             css_class = ''
         elif alert_style in ['danger','warning','info','success']:
             css_class = 'alert alert-{}'.format(alert_style)
+        else:
+            # TODO - missing condition, need to determine what to do here
+            raise Exception("Unrecognized alert_style {}".format(alert_style))
 
         self._status_bar.value="""
         <div class="{css_class}" style="width: {width}">
@@ -767,7 +776,7 @@ class WorkerPoolWidget(ipw.VBox):
         )
 
 class TailWidget(ipw.VBox):
-    "Tail a file. (traitfully!)"
+    """Tail a file. (traitfully!)"""
 
     def __init__(self, path='', width=500, padding=10):
         super().__init__()
@@ -799,6 +808,7 @@ class TailWidget(ipw.VBox):
         self.text = ipw.HTML()
 
         body_width=width-2*padding -2
+        # TODO - not used
         button_width=100
 
         inner_layout = ipw.Layout(
@@ -836,7 +846,7 @@ class TailWidget(ipw.VBox):
         self.children = [
             ipw.HTML("<b>File Tailer</b>"),
             self.controls,
-            aux.Space(padding),
+            kale.aux_widgets.Space(padding),
             self._text_container
         ]
 
@@ -855,7 +865,7 @@ class TailWidget(ipw.VBox):
         self.start_button.on_click(self.click_button)
 
     def tail(self):
-        "Tail file once and print to text area."
+        """Tail file once and print to text area."""
         try:
             with open(self.path.value) as fh:
                 text = '<br>'.join(fh.readlines()[-self.num_lines.value:])
@@ -866,24 +876,23 @@ class TailWidget(ipw.VBox):
         self.text.value = text
 
     def watch_file(self):
-        "Periodically read file and print to text area."
+        """Periodically read file and print to text area."""
         while self.keep_watching:
             self.tail()
             time.sleep(self.dt.value)
 
-
     def _set_button_state(self, state):
-        "Set button state."
+        """Set button state."""
         self._button_state = state
         self.start_button.description = self._button_texts[state]
         self.start_button.button_style = self._button_styles[state]
         self.keep_watching = bool(state)
 
     def _toggle_button(self):
-        "Flip button state."
+        """Flip button state."""
         self._set_button_state((self._button_state+1)%2)
 
     def click_button(self,*args):
-        "Toggle button and watch file when button is clicked."
+        """Toggle button and watch file when button is clicked."""
         self._toggle_button()
         self.future = self.thread_pool.submit(self.watch_file)
