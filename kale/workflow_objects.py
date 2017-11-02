@@ -16,7 +16,7 @@ import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
 
 # local
-import kale_workflows.batch_jobs
+import kale.batch_jobs
 
 
 # TODO - update all instances of default arguments set to a mutable e.g.; [], {}
@@ -135,11 +135,6 @@ class WorkerPool(traitlets.HasTraits):
 
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
         self.lpad.add_wf(fw_workflow)
-
-        print(self.lpad.to_dict())
-
-        for id in self.lpad.get_wf_ids():
-            print(self.lpad.get_wf_summary_dict(id))
 
     @_verify_executor('fireworks')
     def fw_run(self, workflow):
@@ -555,11 +550,11 @@ class NotebookTask(Task):
         print("Notebook run.")
 
     def _gen_firetask(self):
-        self._fifo_path = kale_workflows.batch_jobs.gen_fifo()
-        self._rand_hash = kale_workflows.batch_jobs.gen_random_hash()
+        self._fifo_path = kale.batch_jobs.gen_fifo()
+        self._rand_hash = kale.batch_jobs.gen_random_hash()
 
         return fw.PyTask(
-            func='kale_workflows.batch_jobs.wait_for_fifo',
+            func='kale.batch_jobs.wait_for_fifo',
             kwargs=dict(
                 path=self._fifo_path,
                 key=self._rand_hash
@@ -592,7 +587,7 @@ class CommandLineTask(Task):
         """Create a Firework for this task."""
         #return fw.ScriptTask.from_str(self.command)
         return fw.PyTask(
-            func='kale_workflows.batch_jobs.run_cmd_job',
+            func='kale.batch_jobs.run_cmd_job',
             kwargs=dict(
                 command=self.command,
                 name=self.name,
@@ -651,7 +646,7 @@ class BatchTask(Task):
 
     def _gen_firetask(self):
         return fw.PyTask(
-            func='kale_workflows.batch_jobs.run_batch_job',
+            func='kale.batch_jobs.run_batch_job',
             args=self.batch_script,
             kwargs=dict(
                 node_property=self.node_property,

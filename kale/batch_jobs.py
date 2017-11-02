@@ -53,11 +53,11 @@ def create_success_file():
 
 def wrap_batch_script(batch_script, success_file, randhash):
     success_command = """
-    echo '{randhash}' > {success_file}
-    while [ -z $(grep -Fx '{randhash}' '{success_file}') ]
-    do
-        sleep 1
-    done
+    stdbuf -o0 -e0 echo '{randhash}' > {success_file}
+    #while [ -z $(grep -Fx '{randhash}' '{success_file}') ]
+    #do
+    #    sleep 1
+    #done
     """.format(
         randhash=randhash,
         success_file=success_file
@@ -74,8 +74,8 @@ def submit_batch_script(script_path):
     """Submit job, decode job_id bytes & remove newline
     Holds are passed to qsub via -h.
     """
-    with open(script_path) as fh:
-        print(fh.read())
+    #with open(script_path) as fh:
+    #    print(fh.read())
     command = ['qsub', script_path]
     print("QSUB COMMAND: {}".format(' '.join(command)))
     return subprocess.check_output(command).decode().strip()

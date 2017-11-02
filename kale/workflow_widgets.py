@@ -3,7 +3,7 @@
 
 # stdlib
 import time
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+from concurrent.futures import ThreadPoolExecutor
 
 # 3rd party
 import ipywidgets as ipw
@@ -11,8 +11,8 @@ import traitlets
 import bqplot as bq
 
 # local
-import kale_workflows.aux_widgets as aux
-import kale_workflows.workflow_objects as kale
+import kale.aux_widgets
+import kale.workflow_objects
 
 
 class EditHTML(ipw.VBox):
@@ -107,7 +107,7 @@ class WorkflowWidget(ipw.HBox):
 
         # self._info_area = ipw.VBox([
         #     self._readme_html,
-        #     aux.Space(height=20),
+        #     kale.aux_widgets.Space(height=20),
         #     self._metadata_html,
         #     self._notebook_button
         # ])
@@ -115,7 +115,7 @@ class WorkflowWidget(ipw.HBox):
         self._workflow_area = ipw.VBox([
             ipw.HTML("<b>Workflow Description</b>"),
             self._workflow_readme_html,
-            aux.Space(height=20),
+            kale.aux_widgets.Space(height=20),
             ipw.HTML("<b>Worker Pools</b>"),
             self._workflow_controls
         ])
@@ -123,7 +123,7 @@ class WorkflowWidget(ipw.HBox):
         self._task_area = ipw.VBox([
             ipw.HTML("<b>Task Description</b>"),
             self._task_readme_html,
-            aux.Space(height=20),
+            kale.aux_widgets.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
 
@@ -210,7 +210,7 @@ class WorkflowWidget(ipw.HBox):
         self._widget_log_area = ipw.VBox([
             ipw.HTML("<b>Messages from WorkflowWidget:</b>"),
             self._widget_log_container,
-            aux.Space(10),
+            kale.aux_widgets.Space(10),
             self._log_clear_button
         ])
 
@@ -530,7 +530,6 @@ class WorkflowWidget(ipw.HBox):
                 else:
                     print("Workflow already running.")
             except AttributeError as e:
-                print(e)
                 # Attribute error if self.future is None
                 # which means workflow has not been submitted.
                 self.future = self._thread_pool.submit(self.run_workflow)
@@ -567,7 +566,7 @@ class WorkerPoolWidget(ipw.VBox):
     def __init__(self):
 
         # Keep track of available hosts
-        self.ssh_hosts = aux.SSHAuthWidget.open_connections
+        self.ssh_hosts = kale.aux_widgets.SSHAuthWidget.open_connections
 
         # UI
         self.out_area = ipw.Output()
@@ -582,7 +581,7 @@ class WorkerPoolWidget(ipw.VBox):
         )
 
         self._header = ipw.HTML("<h3>Worker Pools</h3>")
-        self.table = aux.TableWidget(
+        self.table = kale.aux_widgets.TableWidget(
             [["<b>Name</b>", "<b>Location</b>",
             "<b>Workers</b>", "<b>Action</b>"],
             [self._name_text, self._location_text,
@@ -638,7 +637,7 @@ class WorkerPoolWidget(ipw.VBox):
         else:
 
             #with self.out_area:
-            pool = kale.WorkerPool(name, num_workers, location)
+            pool = kale.workflow_objects.WorkerPool(name, num_workers, location)
 
             remove_button = ipw.Button(
                 description="Remove",
@@ -800,7 +799,7 @@ class TailWidget(ipw.VBox):
         self.children = [
             ipw.HTML("<b>File Tailer</b>"),
             self.controls,
-            aux.Space(padding),
+            kale.aux_widgets.Space(padding),
             self._text_container
         ]
 
