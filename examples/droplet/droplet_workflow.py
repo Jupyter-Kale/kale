@@ -1,7 +1,7 @@
 # Oliver Evans
 # August 7, 2017
 
-from workflow_objects import *
+from kale.workflow_objects import *
 
 droplet_wf = Workflow('Droplet Workflow')
 
