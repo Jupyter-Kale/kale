@@ -1,4 +1,4 @@
-import kale_workflows.workflow_objects as kale
+import kale.workflow_objects as kale
 
 t = kale.Task('test')
 

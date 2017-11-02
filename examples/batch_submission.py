@@ -1,9 +1,7 @@
 import zmq
 import time
 import os
-from concurrent.futures import ThreadPoolExecutor
 import subprocess
-import ipywidgets as ipw
 import random
 import sys
 
