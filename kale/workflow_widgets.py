@@ -138,7 +138,7 @@ class WorkflowWidget(ipw.HBox):
             kale.aux_widgets.Space(height=20),
             self._launch_notebook_link,
             self._continue_workflow_button,
-            aux.Space(height=20),
+            kale.aux_widgets.Space(height=20),
             ipw.HTML("<b>Task Metadata</b>"),
             self._metadata_html
 
@@ -610,7 +610,7 @@ class WorkerPoolWidget(ipw.VBox):
     _pool_dict = traitlets.Dict()
     _workflow_widgets = traitlets.List()
 
-    def __init__(self):
+    def __init__(self, fwconfig=None):
 
         # Keep track of available hosts
         self.ssh_hosts = kale.aux_widgets.SSHAuthWidget.open_connections
@@ -666,6 +666,8 @@ class WorkerPoolWidget(ipw.VBox):
             children=[self._header, self.table, self._status_bar]
         )
 
+        self._fwconfig = fwconfig
+
         # Add default pool
         self.add_pool('default', multiprocessing.cpu_count())
 
@@ -684,7 +686,7 @@ class WorkerPoolWidget(ipw.VBox):
         else:
 
             #with self.out_area:
-            pool = kale.workflow_objects.WorkerPool(name, num_workers, location)
+            pool = kale.workflow_objects.WorkerPool(name, num_workers, self._fwconfig, location)
 
             remove_button = ipw.Button(
                 description="Remove",

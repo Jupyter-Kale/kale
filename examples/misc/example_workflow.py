@@ -20,7 +20,7 @@ The final results are printed to 'out.txt'.
 
 n_echos = 10
 n_tasks = 3
-out_file = "out.txt"
+out_file = "/tmp/scratch/out.txt"
 
 pwd_task = kale.workflow_objects.CommandLineTask(
     name='pwd_task',

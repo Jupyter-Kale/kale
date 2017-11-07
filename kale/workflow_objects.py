@@ -4,6 +4,7 @@
 # stdlib
 import os
 import time
+import yaml
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -550,7 +551,7 @@ class NotebookTask(Task):
     and Workflow will continue upon successful execution.
     """
     
-    randhash = tr.Unicode(allow_none=True)
+    randhash = traitlets.Unicode(allow_none=True)
 
     def __init__(self, name, interactive=True, **kwargs):
         self.task_type = 'NotebookTask'
