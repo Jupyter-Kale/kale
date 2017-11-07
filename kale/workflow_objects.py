@@ -4,6 +4,7 @@
 # stdlib
 import os
 import time
+import yaml
 
 from concurrent.futures import ThreadPoolExecutor
 
