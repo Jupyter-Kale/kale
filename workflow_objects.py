@@ -14,7 +14,6 @@ import batch_jobs
 
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
-import pymongo
 
 from concurrent.futures import ThreadPoolExecutor
 

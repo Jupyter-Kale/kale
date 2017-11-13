@@ -23,7 +23,9 @@ unzipped_subdir_list = ["Sphere_Sapphire", "Cyl_Sapphire", "Sphere_Quartz"]
 # Zipped/Prezipped files to ignore
 prezipped_ignore_list = []
 zipped_ignore_list = [
-    'Sub3/50A/atom2'
+    'Sub3/50A/atom2',
+    'Sub3/50A/Repeat/atom1',
+    'Sub951By50/atom1'
 ]
 
 # Name changes from zipped/prezipped to unzipped
@@ -35,11 +37,11 @@ name_changes = [
     ['Sub3', 'Sphere_Sapphire'],
     ['Sphere_Sapphire/50A/Repeat/atom2', r'Sphere_Sapphire/50A/atom2'],
     ['(Cyl[0-9]{2,3}A)/New', r'\1_New'],
-    [r'Sub951By(50|100)/(Cyl[0-9]{2,3}A)', r'Cyl_Sapphire/\2_\1']
+    [r'Sub951By(50|100)/(.*?Cyl[0-9]{2,3}A)', r'Cyl_Sapphire/\2_\1']
 ]
 
 reverse_name_changes = [
-    [r'Cyl_Sapphire/(Cyl[0-9]{2,3}A)_(50|100)', r'Sub951By\2/\1'],
+    [r'Cyl_Sapphire/(.*?Cyl[0-9]{2,3}A)_(50|100)', r'Sub951By\2/\1'],
     ['(Cyl[0-9]{2,3}A)_New', r'\1/New'],
     ['Sphere_Sapphire/50A/atom2', 'Sphere_Sapphire/50A/Repeat/atom2'],
     ['Sphere_Sapphire', 'Sub3'],
@@ -112,7 +114,7 @@ def find_prezipped():
 
 def find_zipped():
     "Simulated and zipped."
-    regex = r"atom.*bz2$"
+    regex = r"atom[0-9]{1,3}\.bz2$"
     files = search_path_list(zipped_path_list, regex)
     partnames = [
         os.path.relpath(filename, zipped_base).replace('.bz2','')
@@ -321,7 +323,7 @@ def create_link_task(partname, workflow, dependency=None):
         unzipped_base,
         partname
     )
-    command = "ln -s {source} {dest}"
+    command = "mkdir -p {dirname} && ln -s {source} {dest}"
 
     task = kale.CommandLineTask(
         name="link_{partname}",
@@ -331,7 +333,8 @@ def create_link_task(partname, workflow, dependency=None):
         params=dict(
             source=source,
             dest=dest,
-            partname=partname
+            partname=partname,
+            dirname=os.path.dirname(dest)
         )
     )
 
@@ -355,7 +358,7 @@ def create_unzip_task(partname, workflow,
         unzipped_base,
         partname
     )
-    command = "pbzip2 -n {num_cores} -cdk {source} > {dest}"
+    command = "mkdir -p {dirname} && pbzip2 -n {num_cores} -cdk {source}.bz2 > {dest}"
 
     task = kale.CommandLineTask(
         name="unzip_{partname}",
@@ -367,6 +370,7 @@ def create_unzip_task(partname, workflow,
             source=source,
             dest=dest,
             partname=partname,
+            dirname=os.path.dirname(dest)
         )
     )
 
