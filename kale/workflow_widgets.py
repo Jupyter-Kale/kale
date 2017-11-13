@@ -15,7 +15,6 @@ import bqplot as bq
 import kale.aux_widgets
 import kale.workflow_objects
 
-
 class EditHTML(ipw.VBox):
     def __init__(self, value='', text_height=400):
         super().__init__()
@@ -571,21 +570,19 @@ class WorkflowWidget(ipw.HBox):
     def _run_wrapper(self, *args):
         with self._widget_log:
             try:
-                if not self.future.running():
-                    self.future = self._thread_pool.submit(self.run_workflow)
-                    print("Workflow submitted.")
-                else:
-                    print("Workflow already running.")
+                self.futures.append(self._thread_pool.submit(self.run_workflow))
+                print("Workflow submitted.")
             except AttributeError as e:
                 # Attribute error if self.future is None
                 # which means workflow has not been submitted.
-                self.future = self._thread_pool.submit(self.run_workflow)
+                self.future = [self._thread_pool.submit(self.run_workflow)]
+                print("Workflow submitted.")
 
     def run_workflow(self, *args):
         """Run workflow with selected WorkerPool."""
 
         # Disable start job button upon submission
-        self._run_button.disabled = True
+        #self._run_button.disabled = True
 
         try:
             pool = self._worker_pool_selector.value
@@ -600,7 +597,8 @@ class WorkflowWidget(ipw.HBox):
         finally:
             # Enable start job button after workflow is finished.
             # (finally ensures reenabling on success or failure)
-            self._run_button.disabled = False
+            #self._run_button.disabled = False
+            pass
 
 
 class WorkerPoolWidget(ipw.VBox):
