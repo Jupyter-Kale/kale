@@ -21,7 +21,6 @@ import kale.batch_jobs
 
 
 # TODO - update all instances of default arguments set to a mutable e.g.; [], {}
-
 class WorkerPool(traitlets.HasTraits):
     """Pool of workers which can execute jobs."""
 
