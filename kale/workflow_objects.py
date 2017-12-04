@@ -21,7 +21,6 @@ import kale.batch_jobs
 
 
 # TODO - update all instances of default arguments set to a mutable e.g.; [], {}
-
 class WorkerPool(traitlets.HasTraits):
     """Pool of workers which can execute jobs."""
 
@@ -133,13 +132,15 @@ class WorkerPool(traitlets.HasTraits):
         fw_tasks = []
         fw_links = {}
 
-        for task in workflow.dag.nodes():
+        for task in dag.nodes():
+            print("Adding task {}".format(task.name))
             firework = task.get_firework(launch_dir=os.getcwd())
             fw_tasks.append(firework)
             child_list = []
-            for child in task.children[workflow]:
+            for child in dag.successors(task):
                 child = child.get_firework(launch_dir=os.getcwd())
                 child_list.append(child.fw_id)
+                print("Adding link {} -> {}".format(task.name, child.name))
             fw_links[firework.fw_id] = child_list
 
         fw_workflow = fw.Workflow(fw_tasks, fw_links)
@@ -202,6 +203,35 @@ class Workflow(traitlets.HasTraits):
 
         # Workflow executor - to be defined on initialization of wf executor.
         self.wf_executor = None
+
+    def example_from_dag(self, dag):
+        """
+        Generate an example workflow from a DAG of numbers.
+        Tasks must be numbered such that each task depends
+        only on tasks with a smaller index.
+        """
+        tasks = [
+                CommandLineTask(
+                name='{num}',
+                command='echo {num}',
+                poll_interval=1,
+                params={'num': i}
+            )
+            for i, node in enumerate(dag.nodes())
+        ]
+
+        for i in range(dag.number_of_nodes()):
+            dependencies = [
+                self.index_dict[index]
+                for index in dag.predecessors(i)
+            ]
+            if len(dependencies) > 0:
+                self.add_task(
+                    tasks[i],
+                    dependencies
+                )
+            else:
+                self.add_task(tasks[i])
 
     def add_task(self, task, dependencies=None):
         """
@@ -366,10 +396,36 @@ class Workflow(traitlets.HasTraits):
         toolbar = bq.Toolbar(figure=fig)
 
         return ipw.VBox([fig, toolbar])
+    
+    def check_selection_for_jumps(self):
+        """
+        It's okay for a selcted task to have a parent or child
+        which is not selected. But it's not okay to have
+        a generational gap in selection.
+        """
+        pass
 
     def gen_subdag(self):
         """Return DAG containing only steps which are to be run. (Not yet implemented.)"""
-        return self.dag
+        subdag = networkx.DiGraph()
+
+        if self._bqgraph.selected is None or len(self._bqgraph.selected) == 0:
+            return self.dag
+        else:
+            self.check_selection_for_jumps()
+
+            for node in self.dag.nodes():
+                node_index = node.index[self]
+                if node_index in self._bqgraph.selected:
+                    subdag.add_node(node)
+                    parent_list = list(self.dag.predecessors(node))
+                    if len(parent_list) > 0:
+                        for parent in parent_list:
+                            parent_index = parent.index[self]
+                            if parent_index in self._bqgraph.selected:
+                                subdag.add_edge(parent, node)
+
+            return subdag
 
     def export_cwl(self, cwl_file):
         pass
@@ -381,7 +437,7 @@ class Task(traitlets.HasTraits):
     name = traitlets.Unicode()
     task_type = traitlets.Unicode()
     readme = traitlets.Unicode()
-    input_files = traitlets.List(trati=traitlets.Unicode())
+    input_files = traitlets.List(trait=traitlets.Unicode())
     output_files = traitlets.List(trait=traitlets.Unicode())
     log_path = traitlets.Unicode()
     num_cores = traitlets.Int()
