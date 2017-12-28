@@ -18,6 +18,7 @@ from fireworks.core.rocket_launcher import rapidfire
 
 # local
 import kale.batch_jobs
+from kale.parsl import parsl_wrap, parsl_func_after_futures
 
 # TODO - Convert print statements to logging statements
 
@@ -44,10 +45,13 @@ class WorkerPool(traitlets.HasTraits):
         self.location = location
         self.log_area = ipw.Output()
 
-        self._add_workers(num_workers)
+        if self.wf_executor == 'fireworks':
+            self._add_workers(num_workers)
 
         if wf_executor == 'fireworks':
             self.init_fireworks()
+        elif wf_executor == 'parsl':
+            self.init_parsl()
 
     def _verify_executor(wf_executor):
         """Verify that given workflow executor is actually
@@ -111,7 +115,7 @@ class WorkerPool(traitlets.HasTraits):
 
     @_verify_executor('fireworks')
     def init_fireworks(self):
-        """Create Fireworks LaunchPad for this workflow."""
+        """Create Fireworks LaunchPad for this pool."""
 
         # TODO - sanity checks on config file
         if self.fwconfig:
@@ -123,6 +127,14 @@ class WorkerPool(traitlets.HasTraits):
 
         # TODO - resetting the FW DB here breaks if everything is not local
         #self.lpad.reset('', require_password=False)
+
+    @_verify_executor('parsl')
+    def init_parsl(self):
+        """Create Parsl excecutors for this pool."""
+        print("num_workers = {}".format(self.num_workers))
+        self.parsl_workers = ThreadPoolExecutor(max_workers=self.num_workers)
+        self.parsl_dfk = DataFlowKernel(executors=[self.parsl_workers])
+
 
     @_verify_executor('fireworks')
     def _fw_queue(self, workflow):
@@ -155,6 +167,37 @@ class WorkerPool(traitlets.HasTraits):
         print("FQ Queued")
         self._fw_rapidfire(workflow)
         print("FW Completed")
+
+    @_verify_executor('parsl')
+    def parsl_run(self, workflow):
+        """Execute workflow via Parsl."""
+        futures = {}
+        wrapped_funcs = {
+            node: parsl_wrap(
+                node.func,
+                self.parsl_dfk,
+                *node.args,
+                **node.kwargs
+            )
+            for node in example_wf_py.dag.nodes()
+        }
+
+        # Topological sort guarantees that parent node
+        # appears in list before child.
+        # Therefore, parent futures will exist
+        # before children futures.
+        for node in nx.dag.topological_sort(example_wf_py.dag):
+            wrapped_func = wrapped_funcs[node]
+            depends = [
+                futures[dep]
+                for dep in node.dependencies[example_wf_py]
+            ]
+
+            futures[node] = parsl_func_after_futures(
+                wrapped_funcs[node],
+                depends,
+                dfk
+            )
 
 
 class Worker(traitlets.HasTraits):
@@ -397,7 +440,7 @@ class Workflow(traitlets.HasTraits):
         toolbar = bq.Toolbar(figure=fig)
 
         return ipw.VBox([fig, toolbar])
-    
+
     def check_selection_for_dependency_gaps(self):
         """
         It's okay for a selcted task to have a parent or child
@@ -626,7 +669,7 @@ class NotebookTask(Task):
     If false, notebook will be executed without opening,
     and Workflow will continue upon successful execution.
     """
-    
+
     randhash = traitlets.Unicode(allow_none=True)
 
     def __init__(self, name, interactive=True, **kwargs):
@@ -707,7 +750,7 @@ class PythonFunctionTask(Task):
         self.args = args
         self.kwargs = kwargs
 
-        user_fields = ['func.__name__', 'args', 'kwargs']
+        user_fields = ['args', 'kwargs']
 
         super().__init__(
             name=name,

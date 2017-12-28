@@ -592,7 +592,10 @@ class WorkflowWidget(ipw.HBox):
                 if pool is None:
                     print("No WorkerPool selected.")
                 else:
-                    pool.fw_run(self.workflow)
+                    if self.wf_executor == 'fireworks':
+                        pool.fw_run(self.workflow)
+                    elif self.wf_executor == 'parsl':
+                        pool.parsl_run(self.workflow)
 
         finally:
             # Enable start job button after workflow is finished.
@@ -619,6 +622,9 @@ class WorkerPoolWidget(ipw.VBox):
         self._location_text = ipw.Dropdown(
             options=self.get_locations()
         )
+        self._executor_text = ipw.Dropdown(
+            options=self.get_executors()
+        )
         self._num_workers_text = ipw.IntText(value=1)
         self._new_button = ipw.Button(
             icon="plus",
@@ -627,12 +633,12 @@ class WorkerPoolWidget(ipw.VBox):
 
         self._header = ipw.HTML("<h3>Worker Pools</h3>")
         self.table = kale.aux_widgets.TableWidget(
-            [["<b>Name</b>", "<b>Location</b>",
+            [["<b>Name</b>", "<b>Location</b>", "<b>Executor</b>"
             "<b>Workers</b>", "<b>Action</b>"],
-            [self._name_text, self._location_text,
+            [self._name_text, self._location_text, self._executor_text,
             self._num_workers_text, self._new_button]],
 
-            col_widths=[150, 200, 60, 100]
+            col_widths=[150, 200, 200, 60, 100]
         )
         self._status_bar = ipw.HTML()
 
@@ -640,12 +646,16 @@ class WorkerPoolWidget(ipw.VBox):
         # IntText needs to be 2 pixels smaller than its container
         name_text_width = self.table.col_widths_int[0]-2
         location_text_width = self.table.col_widths_int[1]-2
+        executor_text_width = self.table.col_widths_int[1]-2
         int_text_width = self.table.col_widths_int[2]-2
         self._name_text.layout=ipw.Layout(
             width=u'{}px'.format(name_text_width)
         )
         self._location_text.layout=ipw.Layout(
             width=u'{}px'.format(location_text_width)
+        )
+        self._executor_text.layout=ipw.Layout(
+            width=u'{}px'.format(executor_text_width)
         )
         self._num_workers_text.layout=ipw.Layout(
             width=u'{}px'.format(int_text_width)
@@ -667,13 +677,21 @@ class WorkerPoolWidget(ipw.VBox):
         self._fwconfig = fwconfig
 
         # Add default pool
-        self.add_pool('default', multiprocessing.cpu_count())
+        self.add_pool(
+            name='default',
+            location='localhost',
+            executor='parsl',
+            num_workers=multiprocessing.cpu_count(),
+        )
 
     def get_locations(self):
         """Get locations where workers can be created."""
         return ['localhost'] + list(self.ssh_hosts.keys())
 
-    def add_pool(self, name, num_workers, location='localhost'):
+    def get_executors(self):
+        return ['parsl', 'fireworks']
+
+    def add_pool(self, name, num_workers, executor, location='localhost'):
         """Add WorkerPool with name `name` and `num_workers` workers to widget."""
         # Check for name conflicts
         if name in self._pool_dict.keys():
@@ -684,7 +702,8 @@ class WorkerPoolWidget(ipw.VBox):
         else:
 
             #with self.out_area:
-            pool = kale.workflow_objects.WorkerPool(name, num_workers, self._fwconfig, location)
+            print("pool num_workers = {}".format(num_workers))
+            pool = kale.workflow_objects.WorkerPool(name, num_workers, self._fwconfig, location, executor)
 
             remove_button = ipw.Button(
                 description="Remove",
@@ -697,7 +716,7 @@ class WorkerPoolWidget(ipw.VBox):
             )
             self.table.insert_row(
                 -1,
-                [name, location, str(num_workers), remove_button]
+                [name, location, executor, str(num_workers), remove_button]
             )
 
             # Store row information in remove_button so that the
