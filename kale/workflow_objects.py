@@ -15,6 +15,7 @@ import ipywidgets as ipw
 import traitlets
 import fireworks as fw
 from fireworks.core.rocket_launcher import rapidfire
+from parsl import ThreadPoolExecutor, DataFlowKernel
 
 # local
 import kale.batch_jobs
@@ -39,8 +40,9 @@ class WorkerPool(traitlets.HasTraits):
 
         self.futures = []
         self.workers = []
-        self.wf_executor = wf_executor
         self.name = name
+        self.num_workers = num_workers
+        self.wf_executor = wf_executor
         self.fwconfig = fwconfig
         self.location = location
         self.log_area = ipw.Output()
@@ -131,7 +133,6 @@ class WorkerPool(traitlets.HasTraits):
     @_verify_executor('parsl')
     def init_parsl(self):
         """Create Parsl excecutors for this pool."""
-        print("num_workers = {}".format(self.num_workers))
         self.parsl_workers = ThreadPoolExecutor(max_workers=self.num_workers)
         self.parsl_dfk = DataFlowKernel(executors=[self.parsl_workers])
 
@@ -171,6 +172,7 @@ class WorkerPool(traitlets.HasTraits):
     @_verify_executor('parsl')
     def parsl_run(self, workflow):
         """Execute workflow via Parsl."""
+        print("parsl_run")
         futures = {}
         wrapped_funcs = {
             node: parsl_wrap(
@@ -179,25 +181,36 @@ class WorkerPool(traitlets.HasTraits):
                 *node.args,
                 **node.kwargs
             )
-            for node in example_wf_py.dag.nodes()
+            for node in workflow.dag.nodes()
         }
+
+        #print("nodes:")
+        #print(list(networkx.dag.topological_sort(workflow.dag)))
 
         # Topological sort guarantees that parent node
         # appears in list before child.
         # Therefore, parent futures will exist
         # before children futures.
-        for node in nx.dag.topological_sort(example_wf_py.dag):
+        for node in networkx.dag.topological_sort(workflow.dag):
+            #print("Running {}".format(node.name))
             wrapped_func = wrapped_funcs[node]
+            #print("wrapped funcs.")
             depends = [
                 futures[dep]
-                for dep in node.dependencies[example_wf_py]
+                for dep in node.dependencies[workflow]
             ]
+            #print("deps: {}".format([
+            #    dep.name
+            #    for dep in node.dependencies[workflow]
+            #]))
 
             futures[node] = parsl_func_after_futures(
                 wrapped_funcs[node],
                 depends,
-                dfk
+                self.parsl_dfk
             )
+            #print("future generated.")
+            print()
 
 
 class Worker(traitlets.HasTraits):

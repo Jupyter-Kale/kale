@@ -280,7 +280,7 @@ class WorkflowWidget(ipw.HBox):
 
         # Default selections
         self._tab.selected_index = 0
-        self.bqgraph.selected = [0]
+        self.bqgraph.selected = []
         self.nodes = list(self.workflow.dag.nodes())
 
         self._thread_pool = ThreadPoolExecutor()
@@ -592,9 +592,9 @@ class WorkflowWidget(ipw.HBox):
                 if pool is None:
                     print("No WorkerPool selected.")
                 else:
-                    if self.wf_executor == 'fireworks':
+                    if pool.wf_executor == 'fireworks':
                         pool.fw_run(self.workflow)
-                    elif self.wf_executor == 'parsl':
+                    elif pool.wf_executor == 'parsl':
                         pool.parsl_run(self.workflow)
 
         finally:
@@ -702,7 +702,6 @@ class WorkerPoolWidget(ipw.VBox):
         else:
 
             #with self.out_area:
-            print("pool num_workers = {}".format(num_workers))
             pool = kale.workflow_objects.WorkerPool(name, num_workers, self._fwconfig, location, executor)
 
             remove_button = ipw.Button(
@@ -737,8 +736,14 @@ class WorkerPoolWidget(ipw.VBox):
         """Add worker pool to widget. To be called by button."""
         num_workers = self._num_workers_text.value
         location = self._location_text.value
+        wf_executor = self._executor_text.value
         name = self._name_text.value
-        self.add_pool(name, location=location, num_workers=num_workers)
+        self.add_pool(
+            name,
+            location=location,
+            num_workers=num_workers,
+            executor=wf_executor
+        )
 
         # Reset values
         self._num_workers_text.value = 1
