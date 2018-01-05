@@ -175,6 +175,9 @@ class WorkerPool(traitlets.HasTraits):
         So far, I'm assuming that we're only executing PythonFunctionTasks via Parsl.
         """
         print("parsl_run")
+
+        # TODO: Remove workflow. from all of these.
+        # They are only being saved for debugging.
         workflow.futures = dict()
         workflow.wrapped_funcs = dict()
 
