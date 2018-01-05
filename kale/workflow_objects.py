@@ -19,7 +19,7 @@ from parsl import ThreadPoolExecutor, DataFlowKernel
 
 # local
 import kale.batch_jobs
-from kale.parsl import parsl_wrap, parsl_func_after_futures
+from kale.parsl_wrappers import parsl_wrap, parsl_func_after_futures
 
 # TODO - Convert print statements to logging statements
 
