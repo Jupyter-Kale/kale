@@ -275,6 +275,10 @@ class Workflow(traitlets.HasTraits):
         # Workflow executor - to be defined on initialization of wf executor.
         self.wf_executor = None
 
+    def get_future(self, index):
+        """Return future containing result from task with given index."""
+        return self.index_dict[index].future
+
     def example_from_dag(self, dag):
         """
         Generate an example workflow from a DAG of numbers.
