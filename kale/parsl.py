@@ -9,6 +9,10 @@ def parsl_func_after_futures(fn, futures, dfk, *args, **kwargs):
 
     """
 
+    #print("AfterWrap {}: {}, {}".format(
+    #    fn.__name__, args, kwargs
+    #))
+
     @App('python', dfk)
     def wrapper(*futures):
         return fn(*args, **kwargs)
@@ -28,6 +32,9 @@ def parsl_wrap(fn, dfk, *args, **kwargs):
 
     """
 
+    #print("Wrapping {}: {}, {}".format(
+    #    fn.__name__, args, kwargs
+    #))
     @App('python', dfk)
     def wrapper(*depends):
         return fn(*args, **kwargs)

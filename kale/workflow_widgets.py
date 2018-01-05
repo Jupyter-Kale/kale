@@ -584,24 +584,28 @@ class WorkflowWidget(ipw.HBox):
         # Disable start job button upon submission
         #self._run_button.disabled = True
 
-        try:
-            pool = self._worker_pool_selector.value
+        #try:
+        pool = self._worker_pool_selector.value
 
-            with self._widget_log:
-                print("Attempting to start job.")
-                if pool is None:
-                    print("No WorkerPool selected.")
-                else:
-                    if pool.wf_executor == 'fireworks':
-                        pool.fw_run(self.workflow)
-                    elif pool.wf_executor == 'parsl':
-                        pool.parsl_run(self.workflow)
+        # This causes output to be redirected to "Widget Log"
+        # pane in WorkflowWidget.
+        # Disable for now.
+        # with self._widget_log:
+        print("Attempting to start job.")
+        if pool is None:
+            print("No WorkerPool selected.")
+        else:
+            if pool.wf_executor == 'fireworks':
+                pool.fw_run(self.workflow)
+            elif pool.wf_executor == 'parsl':
+                pool.parsl_run(self.workflow)
 
-        finally:
+        #finally:
             # Enable start job button after workflow is finished.
             # (finally ensures reenabling on success or failure)
             #self._run_button.disabled = False
-            pass
+
+            #pass
 
 
 class WorkerPoolWidget(ipw.VBox):

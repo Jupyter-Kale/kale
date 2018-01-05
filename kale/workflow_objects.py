@@ -5,8 +5,8 @@
 import os
 import time
 import yaml
-
-from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
+import concurrent.futures as cf
 
 # 3rd party
 import bqplot as bq
@@ -103,7 +103,7 @@ class WorkerPool(traitlets.HasTraits):
         """Execute workflow in rapidfire with Workers."""
 
         # All workers should concurrently pull jobs.
-        with ThreadPoolExecutor() as executor:
+        with cf.ThreadPoolExecutor() as executor:
             self.futures = []
             for i, worker in enumerate(self.workers):
                 self.log_area.clear_output()
@@ -133,7 +133,7 @@ class WorkerPool(traitlets.HasTraits):
     @_verify_executor('parsl')
     def init_parsl(self):
         """Create Parsl excecutors for this pool."""
-        self.parsl_workers = ThreadPoolExecutor(max_workers=self.num_workers)
+        self.parsl_workers = cf.ThreadPoolExecutor(max_workers=self.num_workers)
         self.parsl_dfk = DataFlowKernel(executors=[self.parsl_workers])
 
 
@@ -171,18 +171,12 @@ class WorkerPool(traitlets.HasTraits):
 
     @_verify_executor('parsl')
     def parsl_run(self, workflow):
-        """Execute workflow via Parsl."""
+        """Execute workflow via Parsl.
+        So far, I'm assuming that we're only executing PythonFunctionTasks via Parsl.
+        """
         print("parsl_run")
-        futures = {}
-        wrapped_funcs = {
-            node: parsl_wrap(
-                node.func,
-                self.parsl_dfk,
-                *node.args,
-                **node.kwargs
-            )
-            for node in workflow.dag.nodes()
-        }
+        workflow.futures = dict()
+        workflow.wrapped_funcs = dict()
 
         #print("nodes:")
         #print(list(networkx.dag.topological_sort(workflow.dag)))
@@ -191,23 +185,40 @@ class WorkerPool(traitlets.HasTraits):
         # appears in list before child.
         # Therefore, parent futures will exist
         # before children futures.
-        for node in networkx.dag.topological_sort(workflow.dag):
-            #print("Running {}".format(node.name))
-            wrapped_func = wrapped_funcs[node]
+        for task in networkx.dag.topological_sort(workflow.dag):
+            #print("Running {}".format(task.name))
+            # Reset futures before submission
+            task.reset_future()
+
+            #print("""About to wrap.
+            #name={},
+            #task={},
+            #args={},
+            #kwargs={}.
+            #future={}""".format(task.name, task, task.args, task.kwargs, task.future))
+            workflow.wrapped_funcs[task] = parsl_wrap(
+                task.func,
+                self.parsl_dfk,
+                *task.args,
+                **task.kwargs
+            )
+
             #print("wrapped funcs.")
             depends = [
-                futures[dep]
-                for dep in node.dependencies[workflow]
+                workflow.futures[dep]
+                for dep in task.dependencies[workflow]
             ]
             #print("deps: {}".format([
             #    dep.name
-            #    for dep in node.dependencies[workflow]
+            #    for dep in task.dependencies[workflow]
             #]))
 
-            futures[node] = parsl_func_after_futures(
-                wrapped_funcs[node],
+            workflow.futures[task] = parsl_func_after_futures(
+                workflow.wrapped_funcs[task],
                 depends,
-                self.parsl_dfk
+                self.parsl_dfk,
+                *task.args,
+                **task.kwargs
             )
             #print("future generated.")
             print()
@@ -395,6 +406,10 @@ class Workflow(traitlets.HasTraits):
 
         x, y = [[pos[node][i] for node in self.dag.nodes()] for i in range(2)]
 
+        # TODO: Some items of interest to be displayed in WorkflowWidget
+        # are not serializable (e.g. a future as a PythonFunctionTask
+        # argument). It may be necessary to have get_user_dict return
+        # representations rather than the actual objects.
         node_data = [
             {
                 'label': str(node.index[self]),
@@ -414,6 +429,7 @@ class Workflow(traitlets.HasTraits):
         xs = bq.LinearScale()
         ys = bq.LinearScale()
         scales = {'x': xs, 'y': ys}
+
 
         graph = bq.Graph(
             node_data=node_data,
@@ -759,16 +775,18 @@ class PythonFunctionTask(Task):
     """Python function call to be executed as a Workflow step."""
     def __init__(self, name, func, args=[], kwargs={}, **other_kwargs):
         # Actual callable function to be executed.
-        self.func = func
+        #self.func = func
+        self.func = self.wrap_func(func)
         self.args = args
         self.kwargs = kwargs
+        self.future = cf.Future()
 
         user_fields = ['args', 'kwargs']
 
         super().__init__(
             name=name,
             task_type='PythonFunctionTask',
-            user_fields=user_fields,
+            #user_fields=user_fields,
             **other_kwargs
         )
 
@@ -782,6 +800,66 @@ class PythonFunctionTask(Task):
             args=self.args,
             kwargs=self.kwargs
         )
+
+    def reset_future(self):
+        """Replace self.future with a new Future.
+        This should be called upon workflow submission."""
+        #print("future before: {}".format(self.future))
+        self.future = cf.Future()
+        #print("future after: {} \n now = {}".format(self.future, datetime.now()))
+
+    def parse_args(self, args, kwargs):
+        """Replace any Task in args or kwargs with the result of their future.
+        This should be called immediately before execution."""
+        import time
+
+        #print("""Parsing args: {}
+        #now = {}
+        #task = {}""".format(args, datetime.now(), self))
+        new_args = []
+        for arg in args:
+            if isinstance(arg, Task):
+                #print("before result.")
+                new_args.append(arg.future.result())
+                #print("after result.")
+            else:
+                new_args.append(arg)
+
+        #print("Parsing kwargs: {}".format(kwargs))
+        new_kwargs = dict()
+        for key, val in kwargs.items():
+            if isinstance(val, Task):
+                new_kwargs[key] = val.future.result()
+            else:
+                new_kwargs[key] = val
+
+        return new_args, new_kwargs
+
+    def wrap_func(self, func):
+        """Wrap the function so that any futures in `args` or `kwargs`
+        are replaced by their results,
+        AND that the return value of this function will be
+        accessible via PythonFunctionTask.future.result().
+
+        NOTE: This will almost certainly break Fireworks execution.
+        because it relies on func.__name__. Not 100% sure.
+        """
+        def wrapper(*args, **kwargs):
+            import time
+            time.sleep(0.5)
+            #print("\nWaiting...")
+            #print("Wrapper running.")
+            #print("Given args={}, kwargs={}".format(args, kwargs))
+            new_args, new_kwargs = self.parse_args(args, kwargs)
+            #print("Executing w/ new_args={}, new_kwargs={}".format(new_args, new_kwargs))
+            #print("Args parsed.")
+            # This is where function execution occurs.
+            result = func(*new_args, **new_kwargs)
+            #print("The result is {}".format(result))
+            self.future.set_result(result)
+            #print("Result set.")
+
+        return wrapper
 
 class BatchTask(Task):
     """Task which will be submitted to a batch queue to execute."""
