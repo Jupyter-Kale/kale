@@ -5,6 +5,7 @@
 import time
 from concurrent.futures import ThreadPoolExecutor
 import multiprocessing
+import cgi
 
 # 3rd party
 import ipywidgets as ipw
@@ -445,12 +446,15 @@ class WorkflowWidget(ipw.HBox):
             self._call_read_log()
 
     def _update_metadata_html(self, metadata):
+        # Escape <, >, &, etc. using cgi.escape
+        # Otherwise, metadata string will be
+        # interpreted as literal html.
         html = "<br>".join([
             """
             <b>{key}:</b> {value}
             """.format(
                 key=key,
-                value=value
+                value=cgi.escape(value)
                 )
             for key,value in metadata.items()
         ])
@@ -591,7 +595,8 @@ class WorkflowWidget(ipw.HBox):
         # pane in WorkflowWidget.
         # Disable for now.
         # with self._widget_log:
-        print("Attempting to start job.")
+
+
         if pool is None:
             print("No WorkerPool selected.")
         else:
@@ -637,7 +642,7 @@ class WorkerPoolWidget(ipw.VBox):
 
         self._header = ipw.HTML("<h3>Worker Pools</h3>")
         self.table = kale.aux_widgets.TableWidget(
-            [["<b>Name</b>", "<b>Location</b>", "<b>Executor</b>"
+            [["<b>Name</b>", "<b>Location</b>", "<b>Executor</b>",
             "<b>Workers</b>", "<b>Action</b>"],
             [self._name_text, self._location_text, self._executor_text,
             self._num_workers_text, self._new_button]],

@@ -73,12 +73,12 @@ class KaleDFK(DataFlowKernel):
                (AppFuture) [DataFutures,]
         '''
 
-        #print("""Inner submit
-        #self: {}
-        #func: {}
-        #args: {}
-        #kwargs: {}
-        #""".format(self,func, args, kwargs))
+        # print("""Inner submit
+        # self: {}
+        # func: {}
+        # args: {}
+        # kwargs: {}
+        # """.format(self,func, args, kwargs))
 
 
         task_id = self.task_count
