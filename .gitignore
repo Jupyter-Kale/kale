@@ -1,4 +1,6 @@
 .ipynb_checkpoints/*
+*.egg-info/
+.emacs.desktop
 __pycache__
 tmp/*
 .*.swp
