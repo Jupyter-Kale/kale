@@ -290,6 +290,29 @@ class Workflow(traitlets.HasTraits):
             else:
                 self.add_task(tasks[i])
 
+    def add_dependencies(self, task, dependencies):
+        """Store dependency relationship in DAG.
+        Appends dependencies to those already in place.
+        """
+
+        print("Adding deps: {} <- {}".format(task, dependencies))
+
+        for dependency in dependencies:
+            self.dag.add_edge(dependency, task)
+
+        # Store dependency relationships in all involved nodes
+        if task.dependencies[self]:
+            task.dependencies[self] += dependencies
+        else:
+            task.dependencies[self] = dependencies
+
+        for dependency in dependencies:
+            # Create child list for this workflow if not present
+            if self not in dependency.children.keys():
+                dependency.children[self] = [task]
+            else:
+                dependency.children[self].append(task)
+
     def add_task(self, task, dependencies=None):
         """
         Add instantiated Task object to the Workflow.
@@ -314,19 +337,7 @@ class Workflow(traitlets.HasTraits):
         self.index_dict[index] = task
 
         if dependencies is not None:
-            # Store dependency relationship in DAG
-            for dependency in dependencies:
-                self.dag.add_edge(dependency, task)
-
-            # Store dependency relationships in all involved nodes
-            task.dependencies[self] = dependencies
-
-            for dependency in dependencies:
-                # Create child list for this workflow if not present
-                if self not in dependency.children.keys():
-                    dependency.children[self] = [task]
-                else:
-                    dependency.children[self].append(task)
+            self.add_dependencies(task, dependencies)
 
         # Write empty list to dependency dict if none exist
         else:
