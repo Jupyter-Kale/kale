@@ -575,7 +575,7 @@ class WorkflowWidget(ipw.HBox):
             except AttributeError as e:
                 # Attribute error if self.future is None
                 # which means workflow has not been submitted.
-                self.future = [self._thread_pool.submit(self.run_workflow)]
+                self.futures = [self._thread_pool.submit(self.run_workflow)]
                 print("Workflow submitted.")
 
     def run_workflow(self, *args):
