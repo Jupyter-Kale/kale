@@ -336,15 +336,14 @@ class Workflow(traitlets.HasTraits):
         task.index[self] = index
         self.index_dict[index] = task
 
-        if dependencies is not None:
-            self.add_dependencies(task, dependencies)
-
-        # Write empty list to dependency dict if none exist
-        else:
-            task.dependencies[self] = []
-
+        # Initialize empty dependency list
+        task.dependencies[self] = []
         # Tasks cannot have children at definition time.
         task.children[self] = []
+
+        # Add dependencies if they are provided now
+        if dependencies:
+            self.add_dependencies(task, dependencies)
 
         # Pass tag information to workflow
         self._task_add_tags(task, task.tags)
