@@ -19,7 +19,7 @@ import parsl
 
 # local
 import kale.batch_jobs
-from kale.parsl_wrappers import parsl_wrap, parsl_func_after_futures
+from kale.parsl_wrappers import parsl_wrap, parsl_app_after_futures
 
 # TODO - Convert print statements to logging statements
 
@@ -177,11 +177,13 @@ class WorkerPool(traitlets.HasTraits):
 
         workflow.futures = dict()
 
+        dag = workflow.dag
+
         # Topological sort guarantees that parent node
         # appears in list before child.
         # Therefore, parent futures will exist
         # before children futures.
-        for task in networkx.dag.topological_sort(workflow.dag):
+        for task in networkx.dag.topological_sort(dag):
             # Reset futures before submission
             task.reset_future()
 
@@ -200,12 +202,10 @@ class WorkerPool(traitlets.HasTraits):
             ]
 
             # Submit functions to Parsl & save futures
-            workflow.futures[task] = parsl_func_after_futures(
+            workflow.futures[task] = parsl_app_after_futures(
                 wrapped_func,
                 depends,
                 self.parsl_dfk,
-                *task.args,
-                **task.kwargs
             )
 
 
