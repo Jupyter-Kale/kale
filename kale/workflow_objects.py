@@ -500,8 +500,9 @@ class Workflow(traitlets.HasTraits):
 
             # Add each node in selection
             for node_index in self._bqgraph.selected:
-                # Identify task by index
+                # Identify task by index and add to graph
                 node = self.index_dict[node_index]
+                subdag.add_node(node)
                 # Identify parent in main DAG
                 parent_list = list(self.dag.predecessors(node))
                 for parent in parent_list:
