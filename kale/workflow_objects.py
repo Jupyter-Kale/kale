@@ -21,6 +21,18 @@ import parsl
 import kale.batch_jobs
 from kale.parsl_wrappers import parsl_wrap, parsl_app_after_futures
 
+def run_bash(command):
+    """Run bash command as subprocess, and return stdout as decoded str.
+    """
+    import subprocess
+
+    result = subprocess.check_output(
+        command,
+        shell=True
+    )
+
+    return result.decode()
+
 # TODO - Convert print statements to logging statements
 
 # TODO - update all instances of default arguments set to a mutable e.g.; [], {}
@@ -189,12 +201,7 @@ class WorkerPool(traitlets.HasTraits):
             task.reset_future()
 
             # Prepare function to be run by parsl
-            wrapped_func = parsl_wrap(
-                task.func,
-                self.parsl_dfk,
-                *task.args,
-                **task.kwargs
-            )
+            wrapped_func = task.get_parsl_app(self.parsl_dfk)
 
             # TODO: We have two levels of futures on the workflow
             # (not considering the ones on the tasks)
@@ -521,6 +528,8 @@ class Workflow(traitlets.HasTraits):
                         # but avoids creating duplicate nodes.
                         subdag.add_edge(parent, node)
 
+
+            print("Returning {}".format(list(subdag.nodes)))
             return subdag
 
     def export_cwl(self, cwl_file):
@@ -627,6 +636,9 @@ class Task(traitlets.HasTraits):
         # Initialize None as placeholder for Firework executable.
         self._firework = None
 
+        # Future to hold result of task
+        self.future = cf.Future()
+
     def get_user_dict(self):
         """Generate dictionary of user field names
         and their corresponding string representations."""
@@ -685,6 +697,40 @@ class Task(traitlets.HasTraits):
                 field_list[i] = after
             # Write working copy to actual list
             setattr(self, list_name, field_list)
+
+    def reset_future(self):
+        """Replace self.future with a new Future.
+        This should be called upon workflow submission."""
+        #print("future before: {}".format(self.future))
+        self.future = cf.Future()
+        #print("future after: {} \n now = {}".format(self.future, datetime.now()))
+
+    def parse_args(self, args, kwargs):
+        """Replace any Task in args or kwargs with the result of their future.
+        This should be called immediately before execution."""
+        import time
+
+        #print("""Parsing args: {}
+        #now = {}
+        #task = {}""".format(args, datetime.now(), self))
+        new_args = []
+        for arg in args:
+            if isinstance(arg, Task):
+                #print("before result.")
+                new_args.append(arg.future.result())
+                #print("after result.")
+            else:
+                new_args.append(arg)
+
+        #print("Parsing kwargs: {}".format(kwargs))
+        new_kwargs = dict()
+        for key, val in kwargs.items():
+            if isinstance(val, Task):
+                new_kwargs[key] = val.future.result()
+            else:
+                new_kwargs[key] = val
+
+        return new_args, new_kwargs
 
     def _run(self):
         """
@@ -762,6 +808,14 @@ class CommandLineTask(Task):
     def _run(self):
         print("Command Line run.")
 
+    def get_parsl_app(self, parsl_dfk):
+        """Return the appropriate parsl wrapped function"""
+        return parsl_wrap(
+            run_bash,
+            parsl_dfk,
+            args=[self.command]
+        )
+
     def _gen_firetask(self):
         """Create a Firework for this task."""
         #return fw.ScriptTask.from_str(self.command)
@@ -782,10 +836,9 @@ class PythonFunctionTask(Task):
     def __init__(self, name, func, args=[], kwargs={}, **other_kwargs):
         # Actual callable function to be executed.
         #self.func = func
-        self.func = self.wrap_func(func)
+        self.func = func
         self.args = args
         self.kwargs = kwargs
-        self.future = cf.Future()
 
         user_fields = ['args', 'kwargs']
 
@@ -807,57 +860,15 @@ class PythonFunctionTask(Task):
             kwargs=self.kwargs
         )
 
-    def reset_future(self):
-        """Replace self.future with a new Future.
-        This should be called upon workflow submission."""
-        #print("future before: {}".format(self.future))
-        self.future = cf.Future()
-        #print("future after: {} \n now = {}".format(self.future, datetime.now()))
+    def get_parsl_app(self, parsl_dfk):
+        """Return the appropriate parsl wrapped function"""
+        return parsl_wrap(
+            self.func,
+            parsl_dfk,
+            *self.args,
+            **self.kwargs
+        )
 
-    def parse_args(self, args, kwargs):
-        """Replace any Task in args or kwargs with the result of their future.
-        This should be called immediately before execution."""
-        import time
-
-        #print("""Parsing args: {}
-        #now = {}
-        #task = {}""".format(args, datetime.now(), self))
-        new_args = []
-        for arg in args:
-            if isinstance(arg, Task):
-                #print("before result.")
-                new_args.append(arg.future.result())
-                #print("after result.")
-            else:
-                new_args.append(arg)
-
-        #print("Parsing kwargs: {}".format(kwargs))
-        new_kwargs = dict()
-        for key, val in kwargs.items():
-            if isinstance(val, Task):
-                new_kwargs[key] = val.future.result()
-            else:
-                new_kwargs[key] = val
-
-        return new_args, new_kwargs
-
-    def wrap_func(self, func):
-        """Wrap the function so that any futures in `args` or `kwargs`
-        are replaced by their results,
-        AND that the return value of this function will be
-        accessible via PythonFunctionTask.future.result().
-
-        NOTE: This will almost certainly break Fireworks execution.
-        because it relies on func.__name__. Not 100% sure.
-        """
-        def wrapper(*args, **kwargs):
-            new_args, new_kwargs = self.parse_args(args, kwargs)
-
-            # This is where function execution occurs.
-            result = func(*new_args, **new_kwargs)
-            self.future.set_result(result)
-
-        return wrapper
 
 class BatchTask(Task):
     """Task which will be submitted to a batch queue to execute."""
