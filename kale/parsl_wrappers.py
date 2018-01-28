@@ -1,21 +1,5 @@
 from parsl import App
 
-def parsl_func_after_futures(fn, futures, dfk, *args, **kwargs):
-    """Execute fn after deps
-
-    fn is a parsl function which returns a future
-    futures is a list of Parsl futures which must complete before execution
-    dfk is the Parsl DataFlowKernel
-
-    """
-
-    @App('python', dfk)
-    def wrapper(*depends):
-        return fn(*args, **kwargs)
-
-    return wrapper(*futures)
-
-
 def parsl_wrap(fn, dfk, *args, **kwargs):
     """Wrapper to generate Parsl dependencies.
 
@@ -34,3 +18,18 @@ def parsl_wrap(fn, dfk, *args, **kwargs):
         return fn(*args, **kwargs)
 
     return wrapper
+
+def parsl_func_after_futures(fn, futures, dfk, *args, **kwargs):
+    """Execute fn after deps
+
+    fn is a parsl function which returns a future
+    futures is a list of Parsl futures which must complete before execution
+    dfk is the Parsl DataFlowKernel
+
+    """
+
+    @App('python', dfk)
+    def wrapper(*depends):
+        return fn(*args, **kwargs)
+
+    return wrapper(*futures)
