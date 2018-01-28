@@ -177,7 +177,7 @@ class WorkerPool(traitlets.HasTraits):
 
         workflow.futures = dict()
 
-        dag = workflow.dag
+        dag = workflow.gen_subdag()
 
         # Topological sort guarantees that parent node
         # appears in list before child.
@@ -198,7 +198,7 @@ class WorkerPool(traitlets.HasTraits):
             # Determine dependencies
             depends = [
                 workflow.futures[dep]
-                for dep in task.dependencies[workflow]
+                for dep in task.dependencies[workflow] if dep in dag
             ]
 
             # Submit functions to Parsl & save futures
