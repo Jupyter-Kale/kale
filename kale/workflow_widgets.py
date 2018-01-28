@@ -314,6 +314,9 @@ class WorkflowWidget(ipw.HBox):
             (self.workflow, 'readme')
         )
 
+        # Create futures
+        self.futures = []
+
         # Run updates
         self._update_readme_html()
         self._update_log()
@@ -572,15 +575,8 @@ class WorkflowWidget(ipw.HBox):
         self._read_log(log_path)
 
     def _run_wrapper(self, *args):
-        with self._widget_log:
-            try:
-                self.futures.append(self._thread_pool.submit(self.run_workflow))
-                print("Workflow submitted.")
-            except AttributeError as e:
-                # Attribute error if self.future is None
-                # which means workflow has not been submitted.
-                self.futures = [self._thread_pool.submit(self.run_workflow)]
-                print("Workflow submitted.")
+        self.futures.append(self._thread_pool.submit(self.run_workflow))
+        print("Workflow submitted.")
 
     def run_workflow(self, *args):
         """Run workflow with selected WorkerPool."""
