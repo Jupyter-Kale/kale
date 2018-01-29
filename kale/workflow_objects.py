@@ -170,6 +170,7 @@ class WorkerPool(traitlets.HasTraits):
         print("FW Completed")
 
     @_verify_executor('parsl')
+    # TODO: Why do we have two sets of futures? (workflow & task)
     def parsl_run(self, workflow):
         """Execute workflow via Parsl.
         So far, I'm assuming that we're only executing PythonFunctionTasks via Parsl.
@@ -195,9 +196,15 @@ class WorkerPool(traitlets.HasTraits):
                 **task.kwargs
             )
 
+            # TODO: We have two levels of futures on the workflow
+            # (not considering the ones on the tasks)
+            # This is why I'm using .result() in the depends = [...]
+            # It seems to work, but we should do a sanity check.
+            # there could be a simpler way with only one level.
+
             # Determine dependencies
             depends = [
-                workflow.futures[dep]
+                workflow.futures[dep].result()
                 for dep in task.dependencies[workflow] if dep in dag
             ]
 
