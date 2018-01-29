@@ -33,6 +33,33 @@ def run_bash(command):
 
     return result.decode()
 
+def parse_args(args, kwargs):
+    """Replace any Task in args or kwargs with the result of their future.
+    This should be called immediately before execution."""
+    import time
+
+    #print("""Parsing args: {}
+    #now = {}
+    #task = {}""".format(args, datetime.now(), self))
+    new_args = []
+    for arg in args:
+        if isinstance(arg, Task):
+            #print("before result.")
+            new_args.append(arg.future.result())
+            #print("after result.")
+        else:
+            new_args.append(arg)
+
+    #print("Parsing kwargs: {}".format(kwargs))
+    new_kwargs = dict()
+    for key, val in kwargs.items():
+        if isinstance(val, Task):
+            new_kwargs[key] = val.future.result()
+        else:
+            new_kwargs[key] = val
+
+    return new_args, new_kwargs
+
 # TODO - Convert print statements to logging statements
 
 # TODO - update all instances of default arguments set to a mutable e.g.; [], {}
@@ -270,6 +297,7 @@ class Workflow(traitlets.HasTraits):
 
         # Workflow executor - to be defined on initialization of wf executor.
         self.wf_executor = None
+        self._bqgraph = None
 
     def get_future(self, index):
         """Return future containing result from task with given index."""
@@ -503,8 +531,9 @@ class Workflow(traitlets.HasTraits):
         """
         subdag = networkx.DiGraph()
 
+        # If the workflow has not been visualized, then self._bqgraph = None.
         # If nothing is selected, then use the full workflow
-        if self._bqgraph.selected is None or len(self._bqgraph.selected) == 0:
+        if self._bqgraph is None or self._bqgraph.selected is None or len(self._bqgraph.selected) == 0:
             return self.dag
 
         # If only some tasks are selected, then check for gaps
@@ -705,32 +734,23 @@ class Task(traitlets.HasTraits):
         self.future = cf.Future()
         #print("future after: {} \n now = {}".format(self.future, datetime.now()))
 
-    def parse_args(self, args, kwargs):
-        """Replace any Task in args or kwargs with the result of their future.
-        This should be called immediately before execution."""
-        import time
+    def wrap_func(self, func):
+        """Wrap the function so that any futures in `args` or `kwargs`
+        are replaced by their results,
+        AND that the return value of this function will be
+        accessible via Task.future.result().
+        """
 
-        #print("""Parsing args: {}
-        #now = {}
-        #task = {}""".format(args, datetime.now(), self))
-        new_args = []
-        for arg in args:
-            if isinstance(arg, Task):
-                #print("before result.")
-                new_args.append(arg.future.result())
-                #print("after result.")
-            else:
-                new_args.append(arg)
+        def wrapper(*args, **kwargs):
+            new_args, new_kwargs = parse_args(args, kwargs)
 
-        #print("Parsing kwargs: {}".format(kwargs))
-        new_kwargs = dict()
-        for key, val in kwargs.items():
-            if isinstance(val, Task):
-                new_kwargs[key] = val.future.result()
-            else:
-                new_kwargs[key] = val
+            # This is where function execution occurs.
+            result = func(*new_args, **new_kwargs)
+            self.future.set_result(result)
 
-        return new_args, new_kwargs
+        wrapper.__name__ = func.__name__
+
+        return wrapper
 
     def _run(self):
         """
@@ -811,9 +831,9 @@ class CommandLineTask(Task):
     def get_parsl_app(self, parsl_dfk):
         """Return the appropriate parsl wrapped function"""
         return parsl_wrap(
-            run_bash,
+            self.wrap_func(run_bash),
             parsl_dfk,
-            args=[self.command]
+            command=self.command
         )
 
     def _gen_firetask(self):
@@ -863,11 +883,12 @@ class PythonFunctionTask(Task):
     def get_parsl_app(self, parsl_dfk):
         """Return the appropriate parsl wrapped function"""
         return parsl_wrap(
-            self.func,
+            self.wrap_func(self.func),
             parsl_dfk,
             *self.args,
             **self.kwargs
         )
+
 
 
 class BatchTask(Task):
