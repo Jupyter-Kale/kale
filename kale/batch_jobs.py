@@ -1,10 +1,12 @@
 # stdlib
 import time
 import os
+import sys
 import subprocess
 import random
+
+# 3rd party
 import tempfile
-import sys
 
 def determine_batch_manager():
     options = {

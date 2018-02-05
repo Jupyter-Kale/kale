@@ -1,0 +1,28 @@
+# These are some ideas about how a system config file would work for kale
+
+bethel:
+    kale_dir: '/home/oge1/kale'
+    work_dir: '/home/oge1/work'
+    batch_system: 'torque'
+    queues: ['default']
+
+amrl:
+    kale_dir: '/home/oevans/kale'
+    work_dir: '/home/oevans/work'
+    setup_script: '/home/oevans/env_vars.sh'
+    batch:
+        batch_system: 'torque'
+        queues: 
+            default: 'default'
+        allocation: 'kale$$$$$$'
+
+cori:
+    kale_dir: '/global/homes/o/oevans/kale'
+    work_dir: 'global/homes/o/oevans/work'
+    setup_script: '/global/homes/o/oevans/env_vars.sh'
+    batch_system: 'slurm'
+    queues: 
+        default: 'debug'
+        long: 'realtime'
+
+

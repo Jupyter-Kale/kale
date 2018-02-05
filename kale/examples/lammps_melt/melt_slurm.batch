@@ -1,0 +1,12 @@
+#!/bin/bash
+#SBATCH -J lammps_melt
+#SBATCH -p debug
+#SBATCH -N 1
+#SBATCH -t 10:00
+#SBATCH -o lammps_melt.%j
+#SBATCH -C haswell
+#SBATCH -L SCRATCH
+
+module load lammps/20161117-hsw  
+
+srun -n 1 lmp_cori < $HOME/kale/lammps_melt/in.melt
