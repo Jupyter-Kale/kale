@@ -17,7 +17,9 @@ setup(
         'numpy>=1.12',
         'pandas>=0.20.3',
         'paramiko>=2.3.0',
+        'psutil>=5.3.1',
         'pydot>=1.2.3',
+        'sanic>=0.7.0',
         'traitlets>=4.3.2'
     ]
 )
