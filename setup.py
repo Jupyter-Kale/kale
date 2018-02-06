@@ -18,6 +18,7 @@ setup(
         'pandas>=0.20.3',
         'paramiko>=2.3.0',
         'pydot>=1.2.3',
-        'traitlets>=4.3.2'
+        'traitlets>=4.3.2',
+        'parsl>=0.3.1'
     ]
 )
