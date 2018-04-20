@@ -1,0 +1,9 @@
+#!/bin/bash
+#PBS -l nodes=1
+#PBS -l nice=10
+#PBS -j oe
+#PBS -q default
+#PBS -N LAMMPS_Melt
+#PBS -r n
+cd $PBS_O_WORKDIR
+mpiexec -n 1 lammps < /home/oliver/lbl/kale/lammps_melt/in.melt

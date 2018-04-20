@@ -7,3 +7,6 @@ tmp/*
 FW.json
 launcher_*/*
 .watch_job_*
+*.egg-info/
+*.o*
+*.e*
