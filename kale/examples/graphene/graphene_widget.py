@@ -7,15 +7,15 @@ import numpy as np
 import ipyvolume.pylab as p3
 import pandas as pd
 import io
+import os
 import ipyvolume as ipv
 import itertools as it
 import ipywidgets as ipw
 import time
 from datetime import datetime
-import lammps_gen as lg
 
-from aux_widgets import Space
-from graphene_functions import *
+from kale.aux_widgets import Space
+from .graphene_functions import *
 
 class GrapheneSheetWidget(ipw.VBox):
     "Widget to specify parameters for an individual graphene sheet."
