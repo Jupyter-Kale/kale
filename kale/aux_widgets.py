@@ -7,15 +7,26 @@
 import os
 import subprocess as sp
 import time
-from concurrent.futures import ThreadPoolExecutor
+import threading
+import concurrent.futures as cf
+import datetime
+import warnings
+import itertools as it
+import functools as ft
+#from weakref import WeakSet
 
 # 3rd party
-import ipywidgets as ipw
-import IPython.core.display as disp
+import numpy as np
 import pandas as pd
 import requests
 import paramiko
-#from weakref import WeakSet
+import dill
+import ipywidgets as ipw
+import ipyparallel as ipp
+import ipyvolume as ipv
+from IPython import display
+import bqplot as bq
+import qgrid
 
 ## NEWT ##
 
@@ -191,8 +202,8 @@ class NEWTAuthWidget(ipw.VBox):
         )
         
         with self._results_box:
-            disp.display(
-                disp.HTML(
+            display.display(
+                display.HTML(
                     html_output
                 )
             )
@@ -218,14 +229,14 @@ class NEWTAuthWidget(ipw.VBox):
         )
         
         with self._results_box:
-            disp.display(
-                disp.HTML(
+            display.display(
+                display.HTML(
                     html_output
                 )
             )
             
     def _render_auth_table(self, request):
-        disp.display(disp.HTML(
+        display.display(display.HTML(
                 self._request_json_to_html(request)
             ))
         
@@ -432,8 +443,8 @@ class SSHAuthWidget(ipw.VBox):
         )
         
         with self._results_box:
-            disp.display(
-                disp.HTML(
+            display.display(
+                display.HTML(
                     html_output
                 )
             )
@@ -459,14 +470,14 @@ class SSHAuthWidget(ipw.VBox):
         )
         
         with self._results_box:
-            disp.display(
-                disp.HTML(
+            display.display(
+                display.HTML(
                     html_output
                 )
             )
             
     def _render_auth_table(self, request):
-        disp.display(disp.HTML(
+        display.display(display.HTML(
                 self._request_json_to_html(request)
             ))
         
@@ -557,7 +568,7 @@ class SSHTerminal(ipw.VBox):
         #self.display_shell_output()
 
         # Create thread pool for concurrent polling
-        #self._thread_pool = ThreadPoolExecutor()
+        #self._thread_pool = cf.ThreadPoolExecutor()
         
     def run_exec(self, command):
         "Submit command via exec_command."
@@ -676,7 +687,7 @@ class QueueWidget(ipw.VBox):
         ]
 
         # Create thread pool for concurrent polling
-        self._thread_pool = ThreadPoolExecutor()
+        self._thread_pool = cf.ThreadPoolExecutor()
         
         # Connnect GUI to model
         self._user_input.on_submit(self._disable_and_refresh)
@@ -778,7 +789,7 @@ class QueueWidget(ipw.VBox):
                 print("New data!")
             self._output_area.clear_output()
             with self._output_area:
-                disp.display(queue_df)
+                display.display(queue_df)
         else:
             with self._log:
                 print("No new data.")
@@ -850,8 +861,8 @@ class QueueWidget(ipw.VBox):
                 self._output_area.clear_output()
                 
                 with self._output_area:
-                    disp.display(
-                        disp.HTML(
+                    display.display(
+                        display.HTML(
                             html_output
                         )
                     )
@@ -864,7 +875,7 @@ class QueueWidget(ipw.VBox):
     def _display_error(self, request):
         self._output_area.clear_output()
         with self._output_area:
-            disp.display(disp.HTML(request.text))
+            display.display(display.HTML(request.text))
     
     @staticmethod
     def squeue(user=''):
@@ -1106,3 +1117,361 @@ class TableWidget(ipw.VBox):
         old = row_list.pop(index)
         self.children = row_list
         return old
+
+
+## Updating Plot ##
+
+# class PollThread(threading.thread):
+#     """Polling thread which can be terminated"""
+#     def __init__(self, *, sleep, target, args, kwargs, **more_kwargs):
+#         self._stop = False
+#         
+#         @ft.wraps(target)
+#         def wrapper(*wr_args, **wr_kwargs):
+#             while not self._stop:
+#                 target(*wr_args, **wr_kwargs)
+#                 time.sleep(sleep)
+#             
+#         super().__init__(
+#             target=wrapper,
+#             args=args,
+#             kwargs=kwargs,
+#             **more_kwargs
+#         )
+#         
+#     def start(self, *args, **kwargs):
+#         super().start(*args, **kwargs)
+#     
+#     def stop(self, *args, **kwargs):
+#         self.stop = True
+
+class UpdatingPlot(ipw.VBox):
+    def __init__(self, ar, y, x=None, sleep=1, xlim=None, ylim=None, xlabel=None, ylabel=None, width=None, height=None, **kwargs):
+        self.x = x
+        self.ar = ar
+        self.sleep = sleep
+        self.xlim = xlim
+        self.ylim = ylim
+        self.xlabel = xlabel
+        self.ylabel = ylabel
+        self.width = width
+        self.height = height
+        self.kwargs = kwargs
+        
+        if isinstance(y, list):
+            self.y = y
+        else:
+            self.y = [y]
+        if not self.xlim:
+            self.xlim = [0, 1]
+        if not self.ylim:
+            self.ylim = [0, 1]
+        if not xlabel:
+            self.xlabel = 'x'
+        if not ylabel:
+            self.ylabel = 'y'
+            
+        self.init_figure()
+        self.init_layout()
+        self.init_logic()
+        
+    def create_line(self, y, display_legend=False):
+        color = self.colors[self.num_lines%len(self.colors)]
+        self.lines.append(bq.Lines(
+            x=[],
+            y=[],
+            scales={'x': self.xscale, 'y': self.yscale},
+            interpolation='linear',
+            display_legend=display_legend,
+            colors=[color],
+            labels=[y]
+        ))
+        self.scatters.append(bq.Scatter(
+            x=[],
+            y=[],
+            scales={'x': self.xscale, 'y': self.yscale},
+            colors=[color]
+        ))
+        self.labels.append(y)
+        self.num_lines += 1
+        
+    def init_figure(self):
+        self.colors = ['blue', 'red', 'green', 'yellow', 'black', 'purple', 'gray']
+        self.xscale = bq.LinearScale(min=self.xlim[0], max=self.xlim[1])
+        self.yscale = bq.LinearScale(min=self.ylim[0], max=self.ylim[1])
+        xlabel = self.xlabel
+        if isinstance(self.ylabel, list):
+            ylabel = ''
+        else:
+            ylabel = self.ylabel
+            
+        self.xax = bq.Axis(
+            scale=self.xscale,
+            label=xlabel,
+            grid_lines='none',
+        )
+        self.yax = bq.Axis(
+            scale=self.yscale,
+            label=ylabel,
+            orientation='vertical',
+            grid_lines='none',
+        )
+        self.num_lines = 0
+        self.lines = []
+        self.scatters = []
+        self.labels = []
+        
+        if isinstance(self.y, list):
+            for y in self.y:
+                self.create_line(y, display_legend=True)
+        else:
+            self.create_line(self.y)
+        
+        self.fig = bq.Figure(marks=self.lines+self.scatters, axes=[self.xax, self.yax], **self.kwargs)
+        
+    def resize_fig(self, i):
+        xmin = float(np.min(self.lines[i].x))
+        xmax = float(np.max(self.lines[i].x))
+        ymin = float(np.min(self.lines[i].y))
+        ymax = float(np.max(self.lines[i].y))
+        if xmin < self.xscale.min:
+            self.xscale.min = xmin
+        if xmax > self.xscale.max:
+            self.xscale.max = xmax
+        if ymin < self.yscale.min:
+            self.yscale.min = ymin
+        if ymax > self.yscale.max:
+            self.yscale.max = ymax
+        
+    def init_layout(self):
+        # Set children for encapsulating ipw.VBox
+        super().__init__([
+            self.fig
+        ])
+        
+        # Figure layout
+        layout = ipw.Layout()
+        
+        # Optional width
+        if self.width:
+            if isinstance(self.width, int):
+                self.width = '{}px'.format(self.width)
+            layout.width = self.width
+            
+        # Optional height
+        if self.height:
+            if isinstance(self.height, int):
+                self.height = '{}px'.format(self.height)
+            layout.height = self.height
+            
+        self.fig.layout = layout
+        
+    def watch_data(self):
+        while not self.done:
+            try:
+                self.update_all()
+            except KeyError:
+                pass
+            time.sleep(self.sleep)
+            
+        if self.ar.done():        
+            self.done = False
+            
+    def update_one(self, i):
+        self.lines[i].y = self.ar.data[self.y[i]]
+        self.scatters[i].y = self.ar.data[self.y[i]]
+        if self.x:
+            self.lines[i].x = self.ar.data[self.x]
+            self.scatters[i].x = self.ar.data[self.x]
+        else:
+            x = [i for i in range(len(self.lines[0].y))]
+            self.lines[i].x = x
+            self.scatters[i].x = x
+                
+    def update_all(self):
+        for i in range(self.num_lines):
+            self.update_one(i)
+            self.resize_fig(i)
+                
+    def init_logic(self):
+        self.done = False
+        self.thread = threading.Thread(target=self.watch_data)
+        self.thread.start()
+
+## Parameter Span ##
+
+
+
+## View
+
+def param_grid(**kwargs):
+    """Generate Cartesian product of keyword arguments"""
+    try:
+        prod_bool = kwargs.pop('_product')
+    except KeyError:
+        prod_bool = False
+    name_list, values_list = zip(*kwargs.items())
+    if prod_bool:
+        prod = it.product(kwargs.items())
+        value_combinations = list(it.product(*values_list))
+    else:
+        value_combinations = list(zip(*values_list))
+    return name_list, value_combinations
+
+def param_df(**kwargs):
+    """Generate pandas DataFrame from Cartesian product of keyword arguments"""
+    names, values = param_grid(**kwargs)
+    return pd.DataFrame(values, columns=names)
+
+def param_qgrid(qgrid_layout=None, **kwargs):
+    """Generate Qgrid table from Cartesian product of keyword arguments"""
+    if not qgrid_layout:
+        qgrid_layout=ipw.Layout()
+    return qgrid.QGridWidget(df=param_df(**kwargs), layout=qgrid_layout)
+
+def dict_list_from_df(df):
+    """Turn each row into a dictionary indexed by column names"""
+    return [{col: val for col, val in zip(df.columns, df.loc[ind,:])} for ind in df.index]
+
+class ParamSpanWidget(ipw.VBox):
+    def __init__(self, compute_func, vis_func, product=False, live=True, output_height='500px', output_layout=None, qgrid_layout=None):
+        """
+        live: bool
+        Whether to pass future to visualize upon task start. Otherwise, results are given after task end.
+        
+        product: bool
+        Whether to take the cartesian product of parameters (grid search). Otherwise, they must be the same length.
+        """
+        self.compute_func = compute_func
+        self.vis_func = vis_func
+        self.product = product
+        self.live = live
+        self.output_height = output_height
+        self.output_layout = output_layout
+        self.qgrid_layout = qgrid_layout
+
+        super().__init__()
+
+        self.init_executor()
+        self.init_ipp()
+        self.init_widgets()
+        self.init_layout()
+
+    def init_executor(self):
+        self.executor = cf.ThreadPoolExecutor()
+        
+    def init_ipp(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.ipp_client = ipp.Client()
+        self.dview = self.ipp_client.direct_view()
+        self.lview = self.ipp_client.load_balanced_view()
+        
+    def init_widgets(self):
+        if not self.output_layout:
+            if isinstance(self.output_height, int):
+                self.output_height = '{}px'.format(self.output_height)
+            self.output_layout = ipw.Layout(height=self.output_height, border='1px solid', overflow_x='scroll', overflow_y='scroll')
+        if not self.qgrid_layout:
+            qgrid_layout = ipw.Layout()
+
+        self.output = ipw.Output(layout=self.output_layout)
+        # param_table is empty until set_params is called
+        self.param_table = param_qgrid(self.qgrid_layout, **{'':[]})
+
+    def init_logic(self):
+        self.param_table.observe(self.visualize_wrapper, names='_selected_rows')
+
+    def init_layout(self):
+        self.children = [
+            self.output,
+            self.param_table
+        ]
+
+    def set_params(self, **all_params):
+        """Provide parameter set to search over
+        all_params = {
+            'param1': [val1, val2, ...],
+            'param2': [val3, val4, ...],
+            ...
+        }
+        """
+        self.param_table = param_qgrid(
+            self.qgrid_layout, 
+            _product=self.product,
+            **all_params
+        )
+        self.init_logic()
+        self.init_layout()
+
+    def submit_and_store(self, paramset_id, paramset):
+        """Submit one job and store the results, indexed by id."""
+        fut = self.lview.apply(self.compute_func, **paramset)
+        self.compute_futures[paramset_id] = fut
+        self.results[paramset_id] = fut.result()
+        
+    def submit_computations(self, *change):
+        # def compute_wrapper(compute_func, name, paramset_id, params, library):
+        #     """Perform computation and send results to MongoDB for one set of params"""
+        #     results = compute_func(**params)
+
+        # Loop over all sets of parameters
+        # paramset_id is the row index,
+        # paramset is the dictionary of params
+        paramitems = self.param_table.df.T.to_dict().items()
+        self.results = [None]*len(paramitems)
+        self.compute_futures = [None]*len(paramitems)
+        self.save_futures = [None]*len(paramitems)
+        for paramset_id, paramset in paramitems:
+            # Submit task to IPyParallel
+            # fut =  self.lview.apply(compute_wrapper, self.compute_func, self.name, paramset_id, paramset, self.library)
+            # One thread per task so that results can be saved asynchronously when they return
+            # Keep the outer future to make sure all results have been saved
+            self.save_futures[paramset_id] = self.executor.submit(self.submit_and_store, paramset_id, paramset)
+
+    def visualize_wrapper(self, *change):
+        """Call visualization function and capture output"""
+        # Do nothing if selection is empty:
+        # Empty list evaluates to False
+        if not self.param_table.get_selected_rows():
+            return
+
+        # Get params from selected row (take first row if >1 selected)
+        # The ordering is not necessarily the same as in widget,
+        # so weird things might happen if multiple rows are selected.
+        paramset_id = self.param_table.get_selected_df().index[0]
+        paramset = self.param_table.df.loc[paramset_id, :]
+
+        # Clear screen if the results of this computation
+        # are not available. Assume empty dict by default
+        compute_results = []
+        
+        future = self.compute_futures[paramset_id]
+        # If live, then just pass future to vis_func and let it receive data.
+        if self.live:
+            @self.output.capture(clear_output=True, wait=True)
+            def wrapper():
+                display.display(self.vis_func(future))
+            wrapper()
+        
+        # Otherwise, wait until the task finishes and pass returned values.
+        else:
+            # future is initially None
+            if future and future.done():
+                compute_results = self.results[paramset_id]
+
+                # Avoid using output context to ensure that
+                # only this function's output is included.
+                @self.output.capture(clear_output=True, wait=True)
+                def wrapper():
+                    display.display(self.vis_func(**compute_results))
+            else:
+                @self.output.capture(clear_output=True, wait=True)
+                def wrapper():
+                    print("Task {} not done: {}".format(paramset_id, self.compute_futures[paramset_id]))
+                    
+            wrapper()
+            
+    def get_entries(self):
+        """Get all results stored in database from parameter spans with this name"""
+        return [entry for entry in self.library.list_symbols() if entry[:len(self.name)+1] == self.name+'-']
