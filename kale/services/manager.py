@@ -84,10 +84,22 @@ def shutdown(request):
         return sanic.response.json({"error": e.args})
 
 
+@app.route("/status", methods=["GET"])
+def get_status(request):
+    try:
+        status = {
+            "num_workers": len(ws.list())
+        }
+        return sanic.response.json({"status": status})
+    except Exception as e:
+        return sanic.response.json({"error": e.args})
+
+
 class KaleManagerClient(object):
-    def __init__(self, host="127.0.0.1", port=8099):
+    def __init__(self, host="127.0.0.1", port=8099, timeout=3):
         self.url = "http://{}:{}".format(host, port)
         self.logger = logging.getLogger("KaleManagerClient")
+        self._timeout = timeout
 
         while 1:
             try:
@@ -103,7 +115,9 @@ class KaleManagerClient(object):
 
     def add_worker(self, kale_id, protocol, host, port):
         self.logger.debug("add_worker")
-        response = requests.post("{}/worker".format(self.url), body={
+        response = requests.post("{}/worker".format(self.url),
+            timeout=self._timeout,
+            body={
             "id": kale_id,
             "protocol": protocol,
             "host": host,
@@ -116,7 +130,7 @@ class KaleManagerClient(object):
 
     def remove_worker(self, kale_id):
         self.logger.debug("remove_worker")
-        response = requests.delete("{}/worker/{}".format(self.url, kale_id))
+        response = requests.delete("{}/worker/{}".format(self.url, kale_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
@@ -124,7 +138,7 @@ class KaleManagerClient(object):
 
     def get_worker(self, kale_id):
         self.logger.debug("get_worker")
-        response = requests.get("{}/worker/{}".format(self.url, kale_id))
+        response = requests.get("{}/worker/{}".format(self.url, kale_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
@@ -132,7 +146,7 @@ class KaleManagerClient(object):
 
     def list_workers(self):
         self.logger.debug("list_workers")
-        response = requests.get("{}/worker".format(self.url))
+        response = requests.get("{}/worker".format(self.url), timeout=self._timeout)
         if response.ok:
             self.logger.debug(response.json())
             return response.json()
@@ -142,7 +156,19 @@ class KaleManagerClient(object):
 
     def shutdown(self):
         self.logger.debug("shutdown")
-        response = requests.post("{}/shutdown".format(self.url))
+        response = requests.post("{}/shutdown".format(self.url), timeout=self._timeout)
+        if response.ok:
+            msg = response.json()
+            if "status" in msg:
+                return msg["status"]
+            elif "error" in msg:
+                self.logger.debug(msg["error"])
+        else:
+            response.raise_for_status()
+
+    def get_status(self):
+        self.logger.debug("status")
+        response = requests.get("{}/status".format(self.url), timeout=self._timeout)
         if response.ok:
             msg = response.json()
             if "status" in msg:
