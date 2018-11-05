@@ -1,7 +1,2 @@
-.ipynb_checkpoints/*
 __pycache__
-tmp/*
-.*.swp
-FW.json
-launcher_*/*
-.watch_job_*
+kale_workflows.egg-info
