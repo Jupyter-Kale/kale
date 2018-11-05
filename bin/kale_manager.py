@@ -15,7 +15,6 @@ if __name__ == "__main__":
     parser.add_argument("--port", help="Port to listen on, default = 8099", type=int)
 
     args = parser.parse_args()
-    print(args.echo)
 
     _host = "127.0.0.1"
     if args.host:
