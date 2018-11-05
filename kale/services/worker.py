@@ -25,24 +25,25 @@ from . import manager
 
 mp = multiprocessing.get_context('spawn')
 
+_RLIMIT_CONSTANTS = {k: v for k, v in psutil.__dict__.items() if k.startswith("RLIMIT")}
 
 def get_kale_id():
     return str(uuid.uuid4())
 
 
-def spawn_worker(kale_id, host="127.0.0.1", manager_host="127.0.0.1"):
+def spawn_worker(kale_id, whost="127.0.0.1", mhost="127.0.0.1"):
     _logger = logging.getLogger(__name__)
     _logger.debug("spawn_worker")
-    app = KaleWorker(kale_id, manager_host)
-    p = mp.Process(target=app.run, args=[host])
+    app = KaleWorker(kale_id, mhost)
+    p = mp.Process(target=app.run, args=[whost])
     p.start()
     return p
 
 
-def run_function(f=None, args=(), kwargs=None, worker_host="127.0.0.1", manager_host="127.0.0.1"):
-    mgr = manager.KaleManagerClient(host=manager_host)
+def run_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0.1"):
+    mgr = manager.KaleManagerClient(host=mhost)
     kale_id = get_kale_id()
-    kale_proc = spawn_worker(kale_id, host=worker_host, manager_host=manager_host)
+    kale_proc = spawn_worker(kale_id, whost=whost, mhost=mhost)
 
     kale_task = None
     kale_worker = None
@@ -94,6 +95,62 @@ def run_function(f=None, args=(), kwargs=None, worker_host="127.0.0.1", manager_
         raise Exception(error)
 
 
+async def run_async_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0.1"):
+    mgr = manager.KaleManagerClient(host=mhost)
+    kale_id = get_kale_id()
+    kale_proc = spawn_worker(kale_id, whost=whost, mhost=mhost)
+
+    kale_task = None
+    kale_worker = None
+
+    try:
+        while 1:
+            try:
+                worker_info = mgr.get_worker(kale_id)
+                break
+            except requests.HTTPError:
+                time.sleep(0.1)
+
+        kale_worker = KaleWorkerClient(worker_info["host"], worker_info["port"])
+
+        # make sure the service is listening
+        while 1:
+            try:
+                kale_worker.get_service_status()
+                break
+            except requests.ConnectionError:
+                time.sleep(0.1)
+
+        kale_task = kale_worker.register_function_task(f, args, kwargs)
+        kale_worker.start_task(kale_task)
+
+        while kale_worker.get_task_status(kale_task) != "running":
+            time.sleep(1)
+
+        while 1:
+            try:
+                results = kale_worker.get_task_output(kale_task)
+                error = None
+                break
+            except requests.HTTPError:
+                time.sleep(1)
+    except Exception as e:
+        results = None
+        error = e
+    finally:
+        if kale_task is not None and kale_worker is not None:
+            kale_worker.stop_task(kale_task)
+        if kale_worker is not None:
+            kale_worker.shutdown()
+        kale_proc.join()
+
+    if error is None:
+        return results
+    else:
+        raise Exception(error)
+
+
+
 def kill_process_tree(pid, timeout=3):
     if pid == os.getpid():
         raise RuntimeWarning("Process {} attempted to kill itself!".format(pid))
@@ -101,26 +158,21 @@ def kill_process_tree(pid, timeout=3):
     parent = psutil.Process(pid)
     children = parent.children(recursive=True)
     for p in children:
-        p.kill()
-
+        p.terminate()
     gone, alive = psutil.wait_procs(children, timeout=timeout)
-
-    attempts = 0
-    while len(alive) > 0:
-        for p in alive:
-            p.kill()
-        gone, alive = psutil.wait_procs(children, timeout=timeout)
-        attempts += 1
+    for p in alive:
+        p.kill()
 
     return True
 
 
 class KaleWorker(sanic.Sanic):
-    def __init__(self, kale_id=None, manager="127.0.0.1"):
+    def __init__(self, kale_id=None, mhost="127.0.0.1", mport=8099):
         super().__init__()
         assert kale_id is not None, "kale_id must be a valid identifier"
         self._kale_id = kale_id
-        self._manager = manager
+        self._manager = (mhost,mport)
+        self._manager_url = "http://{}:{}".format(mhost,mport)
         self._task_manager = None
         self.logger = None
         self.add_route(self.serve_task_status, "/task/<task_id>/status", methods=["GET"])
@@ -136,15 +188,32 @@ class KaleWorker(sanic.Sanic):
         self.add_route(self.serve_service_status, "/", methods=["GET"])
 
     def register_worker(self, kale_id, host, port):
-        _host = socket.getfqdn()
+        # determine ip address that routes to manager service, in case of 0.0.0.0 or unresolved DNS names
+        # also ensures that the manager service is reachable from the worker
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.settimeout(3)
+            s.connect(self._manager)
+            _host = s.getsockname()[0]
+        except socket.timeout as e:
+            self.logger.exception(e)
+            raise IOError("Worker {} timed out trying to connect via socket to manager service at {}!".format(
+                kale_id, self._manager_url))
+        except Exception as e:
+            self.logger.exception(e)
+            raise
+        finally:
+            s.shutdown(socket.SHUT_RDWR)
+            s.close()
+
         self.logger.debug("register_worker {} {} {}".format(kale_id, _host, port))
-        response = requests.post("http://{}:{}/worker".format(self._manager, 8099),
+        response = requests.post("{}/worker".format(self._manager_url),
                                  data=json.dumps({"id": kale_id, "host": _host, "protocol": "http", "port": port}))
         return response.json()
 
     def unregister_worker(self):
         self.logger.debug("unregister worker {}".format(self._kale_id))
-        response = requests.delete("http://{}:{}/worker/{}".format(self._manager, 8099, self._kale_id))
+        response = requests.delete("{}/worker/{}".format(self._manager_url, self._kale_id))
         self.logger.debug(response)
 
         try:
@@ -346,9 +415,15 @@ class KaleTaskManager(object):
         name = row[5]
         # set up the connection to receive task results
         worker_conn, task_conn = mp.Pipe(duplex=False)
+
+        # make sure default signal handlers exist for suspend and resume
+        #sigstop = signal.signal(signal.SIGSTOP, signal.SIG_DFL)
+        #sigcont = signal.signal(signal.SIGCONT, signal.SIG_DFL)
+
         # create the task, start it, release the task connection end
         p = KaleTask(target=getattr(target, call), name=name, args=args, kwargs=kwargs, results_pipe=task_conn)
         p.start()
+
         task_conn.close()
         # save state
         self.tasks.update_pid(task_id, p.pid)
@@ -359,21 +434,76 @@ class KaleTaskManager(object):
         return p.pid
 
     def stop_task(self, task_id):
-        self._tasks[task_id]["results_pipe"].close()
-        self._tasks[task_id]["results_pipe"] = None
-        pid = self.tasks.find(task_id)[-1]
-        for p in mp.active_children():
-            if p.pid == pid:
-                if p.is_alive():
-                    self._tasks[task_id]["process"].join(3)
+        f = open('/tmp/scratch/task_{}'.format(task_id), 'w')
+        self.logger.debug("stop_task")
+        f.write("stop_task\n")
+        f.flush()
 
-                if p.is_alive():
-                    psutil.Process(pid).kill()
-                self.tasks.update_pid(task_id, -1)
+        pid = self.tasks.find(task_id)[-1]
+        try:
+            self._tasks[task_id]["results_pipe"].close()
+            self._tasks[task_id]["results_pipe"] = None
+        except Exception:
+            pass
+
+        self.logger.debug("task pid {}".format(pid))
+        self.logger.debug("checking children for specific task pid")
+
+        f.write("task pid {}\n".format(pid))
+        f.write("checking children for specific task pid\n")
+        f.flush()
+
+        child_procs = psutil.Process().children()
+
+        f.write("number of child processes: {}\n".format(len(child_procs)))
+
+        for p in child_procs:
+            self.logger.debug("child pid {}, target pid {}".format(p.pid, pid))
+            f.write("child pid {}, target pid {}\n".format(p.pid, pid))
+            f.write("{} {}\n".format(p.pid == pid, p.is_running()))
+            f.flush()
+            if p.pid == pid and p.is_running():
+                resources = {}
+                try:
+                    resources["num_fds"] = p.num_fds()
+                    resources["num_threads"] = p.num_threads()
+                    resources["open_files"] = p.open_files()
+                    resources["connections"] = p.connections()
+                except:
+                    pass
+
+                self.logger.debug("child task found")
+                self.logger.debug("child task resources -- {}".format(resources))
+
+                f.write("child task found\n")
+                f.write("child task resources -- {}\n".format(resources))
+                f.flush()
+
+                self.logger.debug("terminate all children of this task")
+                f.write("terminate all children of this task\n")
+                f.flush()
+                if len(p.children()) > 0:
+                    kill_process_tree(pid)
+
+                self.logger.debug("wait up to 3 seconds for this child task to end")
+                f.write("wait up to 3 seconds for this child task to end\n")
+                f.flush()
+                self._tasks[task_id]["process"].join(3)
+
+                if p.is_running():
+                    self.logger.debug("child task was not terminated yet, sending kill signal")
+                    f.write("child task was not terminated yet, sending kill signal\n")
+                    f.flush()
+                    p.kill()
+
                 break
         else:
             self.logger.warning("task: {} was not running".format(task_id))
-            self.tasks.update_pid(task_id, -1)
+            f.write("task: {} was not running\n".format(task_id))
+            f.flush()
+
+        f.close()
+        self.tasks.update_pid(task_id, -1)
         return True
 
     def suspend_task(self, task_id):
@@ -393,28 +523,85 @@ class KaleTaskManager(object):
             return True
 
     def get_task_resources(self, task_id):
+        self.logger.debug("get_task_resources")
         pid = self.tasks.find(task_id)[-1]
 
         if pid == -1:
             raise psutil.NoSuchProcess("task: {} was not running".format(task_id))
 
-        task_resources = psutil.Process(pid)
-        usage = task_resources.as_dict()
-        swap_mem = psutil.swap_memory()
-        virtual_mem = psutil.virtual_memory()
+        task = psutil.Process(pid)
 
-        data = {
-            "host": {
-                "cpu_percent": psutil.cpu_percent(percpu=True),
-                "cpu_count": psutil.cpu_count(),
-                "percent_swap_memory_remaining": swap_mem[1] / swap_mem[0] * 100.0,
-                "percent_available_memory_remaining": virtual_mem[1] / virtual_mem[0] * 100.0
-                },
-            "task": {
-                "pid": pid,
-                "usage": usage
+        try:
+            task_usage = {}
+            with task.oneshot():
+                task_usage["pid"] = task.pid
+                task_usage["ppid"] = task.ppid()
+                task_usage["name"] = task.name()
+                task_usage["executable"] = task.exe()
+                task_usage["cmdline"] = task.cmdline()
+                task_usage["environ"] = task.environ()
+                task_usage["create_time"] = task.create_time()
+                task_usage["status"] = task.status()
+                task_usage["cwd"] = task.cwd()
+                task_usage["username"] = task.username()
+                task_usage["uids"] = task.uids()
+                task_usage["gids"] = task.gids()
+                task_usage["terminal"] = task.terminal()
+                task_usage["nice"] = task.nice()
+                task_usage["ionice"] = task.ionice()._asdict()
+                task_usage["rlimits"] = {k: task.rlimit(v) for k, v in _RLIMIT_CONSTANTS.items()}
+                task_usage["io_counters"] = task.io_counters()._asdict()
+                task_usage["num_ctx_switches"] = task.num_ctx_switches()
+                task_usage["num_fds"] = task.num_fds()
+                task_usage["num_threads"] = task.num_threads()
+                task_usage["threads"] = [x._asdict() for x in task.threads()]
+                task_usage["cpu_percent"] = task.cpu_percent(interval=0.1)
+                task_usage["cpu_times"] = task.cpu_times()._asdict()
+                task_usage["cpu_affinity"] = task.cpu_affinity()
+                task_usage["cpu_num"] = task.cpu_num()
+                task_usage["memory_full_info"] = task.memory_full_info()._asdict()
+                task_usage["memory_percent"] = {k: task.memory_percent(k) for k in task_usage["memory_full_info"]}
+                task_usage["memory_maps"] = [x._asdict() for x in task.memory_maps()]
+                task_usage["open_files"] = [x._asdict() for x in task.open_files()]
+                task_usage["connections"] = [x._asdict() for x in task.connections()]
+
+            swap_mem = psutil.swap_memory()
+            virtual_mem = psutil.virtual_memory()
+            partitions = psutil.disk_partitions(all=True)
+            net_if_addrs = psutil.net_if_addrs()
+            hostname = socket.gethostname()
+
+            data = {
+                "host": {
+                    "hostname": hostname,
+                    "fqdn": socket.getfqdn(hostname),
+                    "cpu_percent": psutil.cpu_percent(percpu=True),
+                    "cpu_times": [x._asdict() for x in psutil.cpu_times(percpu=True)],
+                    "cpu_times_percent": [x._asdict() for x in psutil.cpu_times_percent(percpu=True)],
+                    "cpu_stats": psutil.cpu_stats()._asdict(),
+                    "cpu_freq": [x._asdict() for x in psutil.cpu_freq(percpu=True)],
+                    "cpu_count": {
+                        "physical": psutil.cpu_count(logical=False),
+                        "logical": psutil.cpu_count()
+                    },
+                    "percent_swap_memory_remaining": swap_mem[1] / swap_mem[0] * 100.0,
+                    "percent_available_memory_remaining": virtual_mem[1] / virtual_mem[0] * 100.0,
+                    "swap_memory": swap_mem._asdict(),
+                    "virtual_memory": virtual_mem._asdict(),
+                    "disk_partitions": [x._asdict() for x in partitions],
+                    "disk_usage": {
+                        partitions[i].mountpoint:
+                            psutil.disk_usage(partitions[i].mountpoint)._asdict() for i in range(len(partitions))},
+                    "disk_io_counters": {k: v._asdict() for k,v in psutil.disk_io_counters(perdisk=True).items()},
+                    "net_io_counters": {k: v._asdict() for k,v in psutil.net_io_counters(pernic=True).items()},
+                    "net_if_addrs": {k: [x._asdict() for x in net_if_addrs[k]] for k in net_if_addrs},
+                    "net_if_stats": {k: v._asdict() for k,v in psutil.net_if_stats().items()}
+                    },
+                "task": task_usage
                 }
-            }
+        except Exception as e:
+            self.logger.exception(e)
+            data = {'error': "{}".format(traceback.format_exception(etype=e.__class__, value=e, tb=e.__traceback__))}
 
         return data
 
@@ -459,10 +646,14 @@ class KaleTask(multiprocessing.Process):
         self.logger = None
 
     def run(self):
+        # make sure default signal handlers exist for suspend and resume
+        #sigstop = signal.signal(signal.SIGSTOP, signal.SIG_DFL)
+        #sigcont = signal.signal(signal.SIGCONT, signal.SIG_DFL)
+
         if self.logger is None:
             self.logger = logging.getLogger("KaleTask {}".format(self.pid))
-            #self.logger.setLevel(logging.DEBUG)
-            #self.logger.addHandler(logging.handlers.RotatingFileHandler("/tmp/scratch/KaleTask_{}".format(self.pid)))
+            self.logger.setLevel(logging.DEBUG)
+            self.logger.addHandler(logging.handlers.RotatingFileHandler("/tmp/scratch/KaleTask_{}".format(self.pid)))
         while not self.exit.is_set():
             if self._target and not self.completed.is_set():
                 self.logger.debug("KaleTask.run()\ntarget: {}\nargs: {}\nkwargs: {}\n".format(
@@ -470,7 +661,7 @@ class KaleTask(multiprocessing.Process):
                 _stdout = sys.stdout
                 _stderr = sys.stderr
                 sys.stdout = open(str(self.pid) + ".out", "a")
-                sys.stderr = open(str(self.pid) + "_error.out", "a")
+                sys.stderr = open(str(self.pid) + ".err", "a")
 
                 if len(self._kwargs) > 0:
                     out = self._target(*self._args, **self._kwargs)
@@ -503,11 +694,7 @@ class KaleTask(multiprocessing.Process):
         if self.is_alive():
             target = psutil.Process(self.pid)
             # terminate any children of the target process
-            for p in target.children():
-                p.terminate()
-#            gone, alive = psutil.wait_procs(procs, timeout=3)
-#            for p in alive:
-#                p.kill()
+            kill_process_tree(self.pid)
 
             # terminate the target process
             super().terminate()
@@ -527,20 +714,31 @@ class KaleFunctionWrapper(object):
 
 
 class KaleWorkerClient(object):
-    def __init__(self, host, port):
+    def __init__(self, host, port, timeout=30):
         self.url = "http://{}:{}".format(host, port)
         self.logger = logging.getLogger("KaleWorkerClient {}".format(self.url))
+        self._timeout = timeout
 
-        while 1:
+        # sanity check
+        self.is_alive()
+
+    def is_alive(self):
+        retries = 3
+
+        while retries > 0:
             try:
                 self.get_service_status()
+                self.logger.debug("worker {} is alive".format(self.url))
                 break
             except requests.ConnectionError:
+                retries -= 1
                 time.sleep(0.5)
 
-        self.logger.debug("worker {} is alive".format(self.url))
+        if retries == 0:
+            self.logger.debug("Unable to connect to worker {}".format(self.url))
+            raise ConnectionError("Unable to connect to worker {}".format(self.url))
 
-    def register_function_task(self, f, args=(), kwargs=None):
+    def register_function_task(self, f, args=(), kwargs=None, task_name=""):
         wrapper = KaleFunctionWrapper(f)
         target = list(pickle.dumps(wrapper, protocol=pickle.HIGHEST_PROTOCOL))
         target_args = list(pickle.dumps(args, protocol=pickle.HIGHEST_PROTOCOL))
@@ -549,12 +747,13 @@ class KaleWorkerClient(object):
         else:
             target_kwargs = list(pickle.dumps({}, protocol=pickle.HIGHEST_PROTOCOL))
         response = requests.post("{}/task".format(self.url),
+                                 timeout=self._timeout,
                                  data=json.dumps({
                                      "target": target,
                                      "call": f.__name__,
                                      "args": target_args,
                                      "kwargs": target_kwargs,
-                                     "task_name": ""
+                                     "task_name": task_name
                                      })
                                  )
         return response.json()["id"]
@@ -569,6 +768,7 @@ class KaleWorkerClient(object):
         else:
             target_kwargs = list(pickle.dumps({}, protocol=pickle.HIGHEST_PROTOCOL))
         response = requests.post("{}/task".format(self.url),
+                                 timeout=self._timeout,
                                  data=json.dumps({
                                      "target": target,
                                      "call": method,
@@ -580,7 +780,7 @@ class KaleWorkerClient(object):
         return response.json()["id"]
 
     def get_task_output(self, task_id):
-        response = requests.get("{}/task/{}/results".format(self.url, task_id))
+        response = requests.get("{}/task/{}/results".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             raw_output = response.json()
             try:
@@ -593,60 +793,60 @@ class KaleWorkerClient(object):
 
     def start_task(self, task_id):
         self.logger.debug("start_task")
-        response = requests.post("{}/task/{}/start".format(self.url, task_id))
+        response = requests.post("{}/task/{}/start".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
             raise requests.HTTPError(response.text)
 
     def suspend_task(self, task_id):
-        response = requests.post("{}/task/{}/suspend".format(self.url, task_id))
+        response = requests.post("{}/task/{}/suspend".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
             raise requests.HTTPError(response.text)
 
     def resume_task(self, task_id):
-        response = requests.post("{}/task/{}/resume".format(self.url, task_id))
+        response = requests.post("{}/task/{}/resume".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
             raise requests.HTTPError(response.text)
 
     def stop_task(self, task_id):
-        response = requests.post("{}/task/{}/stop".format(self.url, task_id))
+        response = requests.post("{}/task/{}/stop".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
             response.raise_for_status()
 
     def get_tasks(self):
-        response = requests.get("{}/task".format(self.url))
+        response = requests.get("{}/task".format(self.url), timeout=self._timeout)
         if response.ok:
             return response.json()["tasks"]
         else:
             response.raise_for_status()
 
     def get_task_status(self, task_id):
-        response = requests.get("{}/task/{}/status".format(self.url, task_id))
+        response = requests.get("{}/task/{}/status".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             return response.json()["status"]
         else:
             response.raise_for_status()
 
     def get_task_resources(self, task_id):
-        response = requests.get("{}/task/{}/resources".format(self.url, task_id))
+        response = requests.get("{}/task/{}/resources".format(self.url, task_id), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
             response.raise_for_status()
 
     def get_service_status(self):
-        response = requests.get("{}/".format(self.url))
+        response = requests.get("{}/".format(self.url), timeout=self._timeout)
         return response.json()["status"]
 
     def shutdown(self):
-        response = requests.post("{}/shutdown".format(self.url))
+        response = requests.post("{}/shutdown".format(self.url), timeout=self._timeout)
         if response.ok:
             return response.json()
         else:
