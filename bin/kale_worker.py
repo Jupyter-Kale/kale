@@ -22,7 +22,7 @@ if __name__ == "__main__":
     parser.add_argument("--whost", help="DNS name or IP Address to bind a socket for this worker", default="127.0.0.1")
     parser.add_argument("--mhost", help="Kale Manager host name or IP for registration", default="127.0.0.1")
     parser.add_argument("--mport", help="Kale Manager port for registration", type=int, default=8099)
-    args, unknown_args = parser.parse_known_args()
+    args = parser.parse_args()
 
     _worker_host = "127.0.0.1"
     if args.whost:
