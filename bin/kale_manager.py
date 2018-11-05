@@ -14,7 +14,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", help="DNS name or IP Address to bind a socket, default = 127.0.0.1")
     parser.add_argument("--port", help="Port to listen on, default = 8099", type=int)
 
-    args = parser.parse_known_args()
+    args = parser.parse_args()
     print(args.echo)
 
     _host = "127.0.0.1"

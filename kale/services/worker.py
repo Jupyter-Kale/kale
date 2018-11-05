@@ -571,6 +571,24 @@ class KaleTaskManager(object):
             net_if_addrs = psutil.net_if_addrs()
             hostname = socket.gethostname()
 
+            if swap_mem[1] < 1E-6:
+                pct_swap_rem = 100.0
+            else:
+                pct_swap_rem = swap_mem[1]/swap_mem[0] * 100.0
+            
+            if virtual_mem[1] < 1E-6:
+                pct_avail_rem = 100.0
+            else:
+                pct_avail_rem = virtual_mem[1]/virtual_mem[0] * 100.0
+
+            disk_usage = {}
+            for i in range(len(partitions)):
+                mount = partitions[i].mountpoint
+                try:
+                    disk_usage[mount] = psutil.disk_usage(mount)._asdict()
+                except PermissionError as e:
+                    continue
+
             data = {
                 "host": {
                     "hostname": hostname,
@@ -584,14 +602,12 @@ class KaleTaskManager(object):
                         "physical": psutil.cpu_count(logical=False),
                         "logical": psutil.cpu_count()
                     },
-                    "percent_swap_memory_remaining": swap_mem[1] / swap_mem[0] * 100.0,
-                    "percent_available_memory_remaining": virtual_mem[1] / virtual_mem[0] * 100.0,
+                    "percent_swap_memory_remaining": pct_swap_rem,
+                    "percent_available_memory_remaining": pct_avail_rem,
                     "swap_memory": swap_mem._asdict(),
                     "virtual_memory": virtual_mem._asdict(),
                     "disk_partitions": [x._asdict() for x in partitions],
-                    "disk_usage": {
-                        partitions[i].mountpoint:
-                            psutil.disk_usage(partitions[i].mountpoint)._asdict() for i in range(len(partitions))},
+                    "disk_usage": disk_usage,
                     "disk_io_counters": {k: v._asdict() for k,v in psutil.disk_io_counters(perdisk=True).items()},
                     "net_io_counters": {k: v._asdict() for k,v in psutil.net_io_counters(pernic=True).items()},
                     "net_if_addrs": {k: [x._asdict() for x in net_if_addrs[k]] for k in net_if_addrs},
@@ -653,7 +669,7 @@ class KaleTask(multiprocessing.Process):
         if self.logger is None:
             self.logger = logging.getLogger("KaleTask {}".format(self.pid))
             self.logger.setLevel(logging.DEBUG)
-            self.logger.addHandler(logging.handlers.RotatingFileHandler("/tmp/scratch/KaleTask_{}".format(self.pid)))
+            #self.logger.addHandler(logging.handlers.RotatingFileHandler("/tmp/scratch/KaleTask_{}".format(self.pid)))
         while not self.exit.is_set():
             if self._target and not self.completed.is_set():
                 self.logger.debug("KaleTask.run()\ntarget: {}\nargs: {}\nkwargs: {}\n".format(

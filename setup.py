@@ -5,7 +5,7 @@ setup(
     version='0.2',
     license='BSD',
     description='Jupyter HPC Workflows',
-    packages={'kale'},
+    packages={'kale','kale.services','kale.widgets'},
     install_requires=[
         'bqplot>=0.11.0',
         'fireworks>=1.6.9',
