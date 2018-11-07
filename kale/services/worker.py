@@ -31,19 +31,19 @@ def get_kale_id():
     return str(uuid.uuid4())
 
 
-def spawn_worker(kale_id, whost="127.0.0.1", mhost="127.0.0.1"):
+def spawn_worker(kale_id, whost="127.0.0.1", mhost="127.0.0.1", mport=8099):
     _logger = logging.getLogger(__name__)
     _logger.debug("spawn_worker")
-    app = KaleWorker(kale_id, mhost)
+    app = KaleWorker(kale_id, mhost, mport)
     p = mp.Process(target=app.run, args=[whost])
     p.start()
     return p
 
 
-def run_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0.1"):
-    mgr = manager.KaleManagerClient(host=mhost)
+def run_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0.1", mport=8099):
+    mgr = manager.KaleManagerClient(host=mhost,port=mport)
     kale_id = get_kale_id()
-    kale_proc = spawn_worker(kale_id, whost=whost, mhost=mhost)
+    kale_proc = spawn_worker(kale_id, whost=whost, mhost=mhost, mport=mport)
 
     kale_task = None
     kale_worker = None
@@ -95,10 +95,10 @@ def run_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0
         raise Exception(error)
 
 
-async def run_async_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0.1"):
-    mgr = manager.KaleManagerClient(host=mhost)
+async def run_async_function(f=None, args=(), kwargs=None, whost="127.0.0.1", mhost="127.0.0.1", mport=8099):
+    mgr = manager.KaleManagerClient(host=mhost, port=mport)
     kale_id = get_kale_id()
-    kale_proc = spawn_worker(kale_id, whost=whost, mhost=mhost)
+    kale_proc = spawn_worker(kale_id, whost=whost, mhost=mhost, mport=mport)
 
     kale_task = None
     kale_worker = None
