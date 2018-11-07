@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     _worker_host = "127.0.0.1"
     if args.whost:
-        _host = args.whost
+        _worker_host = args.whost
 
     _manager_host = None
     if args.mhost:
@@ -52,7 +52,7 @@ if __name__ == "__main__":
 
     kale_id = get_kale_id()
     print("Spawning Kale Worker {} at {}, registering to Kale Manager at {}".format(kale_id, _worker_host, mgr.url))
-    w = spawn_worker(kale_id, _worker_host, _manager_host)
+    w = spawn_worker(kale_id, _worker_host, _manager_host, _manager_port)
 
     while 1:
         print("Waiting for worker connection info after registration...")
