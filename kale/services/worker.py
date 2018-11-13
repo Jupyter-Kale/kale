@@ -434,10 +434,7 @@ class KaleTaskManager(object):
         return p.pid
 
     def stop_task(self, task_id):
-        f = open('/tmp/scratch/task_{}'.format(task_id), 'w')
-        self.logger.debug("stop_task")
-        f.write("stop_task\n")
-        f.flush()
+        self.logger.debug("stop_task {}".format(task_id))
 
         pid = self.tasks.find(task_id)[-1]
         try:
@@ -449,19 +446,10 @@ class KaleTaskManager(object):
         self.logger.debug("task pid {}".format(pid))
         self.logger.debug("checking children for specific task pid")
 
-        f.write("task pid {}\n".format(pid))
-        f.write("checking children for specific task pid\n")
-        f.flush()
-
         child_procs = psutil.Process().children()
-
-        f.write("number of child processes: {}\n".format(len(child_procs)))
 
         for p in child_procs:
             self.logger.debug("child pid {}, target pid {}".format(p.pid, pid))
-            f.write("child pid {}, target pid {}\n".format(p.pid, pid))
-            f.write("{} {}\n".format(p.pid == pid, p.is_running()))
-            f.flush()
             if p.pid == pid and p.is_running():
                 resources = {}
                 try:
@@ -475,34 +463,21 @@ class KaleTaskManager(object):
                 self.logger.debug("child task found")
                 self.logger.debug("child task resources -- {}".format(resources))
 
-                f.write("child task found\n")
-                f.write("child task resources -- {}\n".format(resources))
-                f.flush()
-
                 self.logger.debug("terminate all children of this task")
-                f.write("terminate all children of this task\n")
-                f.flush()
                 if len(p.children()) > 0:
                     kill_process_tree(pid)
 
                 self.logger.debug("wait up to 3 seconds for this child task to end")
-                f.write("wait up to 3 seconds for this child task to end\n")
-                f.flush()
                 self._tasks[task_id]["process"].join(3)
 
                 if p.is_running():
                     self.logger.debug("child task was not terminated yet, sending kill signal")
-                    f.write("child task was not terminated yet, sending kill signal\n")
-                    f.flush()
                     p.kill()
 
                 break
         else:
             self.logger.warning("task: {} was not running".format(task_id))
-            f.write("task: {} was not running\n".format(task_id))
-            f.flush()
 
-        f.close()
         self.tasks.update_pid(task_id, -1)
         return True
 
