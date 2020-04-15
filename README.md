@@ -1,8 +1,8 @@
-# Kale: Human-in-the-loop computing for interactive HPC with Jupyter
+# Kale: Human-in-the-loop Interactive Distributed Computing with Jupyter
 
 This is an ongoing research effort at Lawrence Berkeley National Laboratory, aimed at
-extending the Jupyter ecosystem with useful add-ons to enable a smooth interactive HPC 
-experience for scientific researchers.
+extending the Jupyter ecosystem with useful add-ons to enable a smooth interactive 
+experience for scientific researchers running on clusters, HPC systems etc.
 
 <example notebook visual here>
 
